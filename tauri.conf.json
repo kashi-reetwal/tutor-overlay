@@ -1,0 +1,35 @@
+{
+  "productName": "tutor-overlay",
+  "version": "0.1.0",
+  "identifier": "com.kashi.tutor-overlay",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../frontend/dist",
+    "devtools": true
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "tutor-overlay",
+        "label": "main",
+        "width": 420,
+        "height": 320,
+        "resizable": false,
+        "fullscreen": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "center": true,
+        "visible": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "plugins": {
+    "global-shortcut": {}
+  }
+}

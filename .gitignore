@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build
+dist/
+build/
+.target/
+**/*.rs.bk
+.tauri/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env and secrets
+.env
+.env.local
+.env.production
+*.pem
+*.key
+
+# Logs
+*.log
+npm-debug.log*
+
+# Capture debug outputs (v1 debug artifacts)
+captures/
+debug-frame*
+
+# OS-specific
+ehthumbs.db
+Desktop.ini
