@@ -21,23 +21,17 @@
     box-shadow: none !important;
   }
 
-  /* Authentic Google Assistant 4-Color Gradient Flow */
-  .google-assistant-border {
-    background: linear-gradient(90deg, #4285F4, #9B51E0, #EA4335, #FBBC05, #34A853, #00F0FF, #4285F4);
-    background-size: 300% 300%;
-    animation: gradientFlow 4s linear infinite;
+  /* Classic Two-Colored Theme: Oxford Blue & Matte Black */
+  .classic-blue-border {
+    background: linear-gradient(90deg, #1E3A8A, #2563EB, #1D4ED8, #3B82F6, #1E3A8A);
+    background-size: 200% 200%;
+    animation: gradientFlow 5s linear infinite;
   }
 
-  .arc-reactor-border {
-    background: linear-gradient(90deg, #00F0FF, #3B82F6, #60A5FA, #06B6D4, #00F0FF);
-    background-size: 300% 300%;
-    animation: gradientFlow 3s linear infinite;
-  }
-
-  .stark-gold-border {
-    background: linear-gradient(90deg, #F59E0B, #EF4444, #FBBF24, #DC2626, #F59E0B);
-    background-size: 300% 300%;
-    animation: gradientFlow 3.5s linear infinite;
+  .classic-black-border {
+    background: linear-gradient(90deg, #18181B, #3F3F46, #27272A, #52525B, #18181B);
+    background-size: 200% 200%;
+    animation: gradientFlow 6s linear infinite;
   }
 
   /* Old-School Vintage Typewriter & CRT Phosphor Borders */
@@ -57,6 +51,10 @@
     background: linear-gradient(90deg, #E7E5E4, #A8A29E, #78716C, #D6D3D1, #E7E5E4);
     background-size: 300% 300%;
     animation: gradientFlow 4s linear infinite;
+  }
+
+  .classic-font {
+    font-family: "Times New Roman", Times, Georgia, "Cambria", serif;
   }
 }
 
@@ -213,18 +211,18 @@
   animation: laserSweep 1.8s ease-in-out infinite;
 }
 
-/* Custom vintage typewriter scrollbar */
+/* Custom classic scrollbar */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(28, 25, 23, 0.7);
+  background: rgba(15, 23, 42, 0.8);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(217, 119, 6, 0.4);
-  border-radius: 4px;
+  background: rgba(37, 99, 235, 0.6);
+  border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(245, 158, 11, 0.7);
+  background: rgba(59, 130, 246, 0.9);
 }

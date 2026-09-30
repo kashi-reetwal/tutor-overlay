@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import {
   X,
@@ -23,7 +24,7 @@ import {
 } from "lucide-react";
 
 type CardState = "idle" | "capturing" | "thinking" | "ready" | "error";
-type BorderTheme = "amber" | "phosphor" | "typewriter" | "assistant" | "arc";
+type BorderTheme = "classic-blue" | "classic-black";
 
 interface Message {
   role: "user" | "jarvis";
@@ -379,10 +380,10 @@ export default function App() {
 
   const [borderTheme, setBorderTheme] = useState<BorderTheme>(() => {
     const saved = localStorage.getItem("tutor_border_theme") as BorderTheme;
-    if (saved && ["amber", "phosphor", "typewriter", "assistant", "arc"].includes(saved)) {
+    if (saved && ["classic-blue", "classic-black"].includes(saved)) {
       return saved;
     }
-    return "amber";
+    return "classic-blue";
   });
   const [borderIntensity, setBorderIntensity] = useState<number>(() => {
     const saved = localStorage.getItem("tutor_border_intensity");
@@ -391,6 +392,76 @@ export default function App() {
 
   const [simulateDesktop, setSimulateDesktop] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // Always-On-Top Document Picture-in-Picture window support
+  const [pipContainer, setPipContainer] = useState<HTMLElement | null>(null);
+  const pipWindowRef = useRef<Window | null>(null);
+
+  const togglePictureInPicture = async () => {
+    if (pipWindowRef.current) {
+      pipWindowRef.current.close();
+      pipWindowRef.current = null;
+      setPipContainer(null);
+      return;
+    }
+
+    if (typeof window !== "undefined" && "documentPictureInPicture" in window) {
+      try {
+        const pip = await (window as any).documentPictureInPicture.requestWindow({
+          width: 720,
+          height: 120,
+        });
+        pipWindowRef.current = pip;
+
+        // Copy stylesheets for full CSS & Tailwind fidelity
+        [...document.styleSheets].forEach((sheet) => {
+          try {
+            const cssRules = [...sheet.cssRules].map((r) => r.cssText).join("");
+            const style = pip.document.createElement("style");
+            style.textContent = cssRules;
+            pip.document.head.appendChild(style);
+          } catch {
+            if (sheet.href) {
+              const link = pip.document.createElement("link");
+              link.rel = "stylesheet";
+              link.href = sheet.href;
+              pip.document.head.appendChild(link);
+            }
+          }
+        });
+
+        // Inject Times New Roman & classic dark styling
+        const fontStyle = pip.document.createElement("style");
+        fontStyle.textContent = `
+          body {
+            margin: 0;
+            padding: 0;
+            background: #0A0A0A;
+            color: #FFFFFF;
+            font-family: "Times New Roman", Times, Georgia, serif;
+            overflow: hidden;
+          }
+        `;
+        pip.document.head.appendChild(fontStyle);
+
+        const root = pip.document.createElement("div");
+        root.id = "pip-root";
+        pip.document.body.appendChild(root);
+        setPipContainer(root);
+
+        pip.addEventListener("pagehide", () => {
+          pipWindowRef.current = null;
+          setPipContainer(null);
+        });
+      } catch (err) {
+        console.warn("Document Picture-in-Picture failed:", err);
+      }
+    } else {
+      alert(
+        "Always-on-top Picture-in-Picture is supported in Google Chrome, Microsoft Edge, and modern Chromium browsers.\n\nTip: You can also run 'npm run tauri dev' for the system-wide transparent desktop overlay!"
+      );
+    }
+  };
 
   const [testConnectionStatus, setTestConnectionStatus] = useState<{
     testing: boolean;
@@ -928,37 +999,63 @@ export default function App() {
   };
 
   return (
-    <div className="fixed inset-0 w-screen h-screen overflow-hidden select-none pointer-events-none font-mono antialiased text-stone-100 bg-transparent">
+    <div
+      className="fixed inset-0 w-screen h-screen overflow-hidden select-none pointer-events-none text-gray-100 bg-transparent"
+      style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
+    >
+      {/* Captured Real Screen Projection Viewport (When real screen is captured) */}
+      {!isTauri && previewImage && !simulateDesktop && (
+        <div className="absolute inset-8 rounded-xl border border-blue-900/60 bg-[#0A0A0A]/95 overflow-hidden flex flex-col pointer-events-none shadow-2xl z-0">
+          <div className="h-8 bg-[#111827] border-b border-blue-950 px-4 flex items-center justify-between text-xs text-blue-300">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+              <span className="font-bold tracking-wide">CAPTURED TARGET WINDOW</span>
+            </div>
+            <span className="text-[11px] text-gray-400">
+              Click <strong className="text-blue-300">[ ⚡ SOLVE SCREEN ]</strong> or{" "}
+              <strong className="text-blue-300">[ 📌 FLOAT ON TOP ]</strong> to keep HUD over other windows
+            </span>
+          </div>
+          <div className="flex-1 flex items-center justify-center p-3 bg-[#050505]">
+            <img
+              src={previewImage}
+              alt="Captured Window Target"
+              className="max-h-full max-w-full object-contain rounded border border-blue-950 shadow-md"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Simulated Background Quiz Window in Browser Preview */}
       {!isTauri && simulateDesktop && (
-        <div className="absolute inset-8 rounded-xl border border-stone-800 bg-[#141210]/95 backdrop-blur-sm overflow-hidden flex flex-col pointer-events-none shadow-2xl opacity-85 transition-all z-0">
-          <div className="h-9 bg-[#1C1917] border-b border-stone-800 px-4 flex items-center justify-between">
+        <div className="absolute inset-8 rounded-xl border border-blue-900/50 bg-[#0A0A0A]/95 backdrop-blur-sm overflow-hidden flex flex-col pointer-events-none shadow-2xl opacity-90 transition-all z-0">
+          <div className="h-9 bg-[#111827] border-b border-blue-950 px-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
-              <span className="ml-2 text-xs text-amber-300 font-mono font-bold">
+              <span className="ml-2 text-xs text-blue-300 font-bold tracking-wide">
                 EXAMINATION PARCHMENT // COMPUTER SCIENCE 101
               </span>
             </div>
-            <span className="text-[10px] text-stone-500 font-mono tracking-wider">
+            <span className="text-[10px] text-gray-500 tracking-wider">
               100% TRANSPARENT CENTER VIEWPORT
             </span>
           </div>
 
-          <div className="p-8 font-mono space-y-5 text-stone-200">
-            <div className="flex items-center justify-between border-b border-stone-800 pb-3">
-              <span className="text-xs text-amber-400 font-mono font-bold tracking-widest uppercase">
+          <div className="p-8 space-y-5 text-gray-200">
+            <div className="flex items-center justify-between border-b border-blue-950/80 pb-3">
+              <span className="text-xs text-blue-400 font-bold tracking-widest uppercase">
                 QUESTION 14 OF 30 • MULTIPLE CHOICE
               </span>
-              <span className="text-xs text-amber-300 font-mono">TIME REMAINING: 24:18</span>
+              <span className="text-xs text-gray-400">TIME REMAINING: 24:18</span>
             </div>
 
-            <p className="text-lg font-bold text-stone-100">
+            <p className="text-lg font-bold text-white">
               What is the worst-case time complexity of Binary Search on a sorted array of N elements?
             </p>
 
-            <div className="grid grid-cols-1 gap-2.5 max-w-2xl font-mono text-sm">
+            <div className="grid grid-cols-1 gap-2.5 max-w-2xl text-sm">
               {[
                 { k: "(A)", t: "O(n) — Linear scan through all elements" },
                 { k: "(B)", t: "O(log n) — Logarithmic halving of search space" },
@@ -969,11 +1066,11 @@ export default function App() {
                   key={opt.k}
                   className={`p-3 rounded-lg border flex items-center gap-3 transition-colors ${
                     parsedAnswer?.option.includes(opt.k[1]) && state === "ready"
-                      ? "border-emerald-500 bg-emerald-950/70 text-emerald-200 font-bold shadow-[0_0_12px_rgba(16,185,129,0.2)]"
-                      : "border-stone-800 bg-[#181614] text-stone-300"
+                      ? "border-blue-500 bg-blue-950/80 text-white font-bold shadow-[0_0_12px_rgba(37,99,235,0.3)]"
+                      : "border-stone-800 bg-[#141414] text-gray-300"
                   }`}
                 >
-                  <span className="text-amber-400 font-bold">{opt.k}</span>
+                  <span className="text-blue-400 font-bold">{opt.k}</span>
                   <span>{opt.t}</span>
                 </div>
               ))}
@@ -986,15 +1083,9 @@ export default function App() {
       <div className="absolute top-0 left-0 right-0 h-[3px] overflow-hidden pointer-events-none z-40">
         <div
           className={`w-full h-full animate-beam-top ${
-            borderTheme === "amber"
-              ? "vintage-amber-border shadow-[0_0_12px_#F59E0B]"
-              : borderTheme === "phosphor"
-              ? "phosphor-green-border shadow-[0_0_12px_#10B981]"
-              : borderTheme === "typewriter"
-              ? "retro-typewriter-border shadow-[0_0_10px_#E7E5E4]"
-              : borderTheme === "assistant"
-              ? "google-assistant-border shadow-[0_0_12px_#4285F4]"
-              : "arc-reactor-border shadow-[0_0_12px_#00F0FF]"
+            borderTheme === "classic-blue"
+              ? "classic-blue-border shadow-[0_0_12px_#2563EB]"
+              : "classic-black-border shadow-[0_0_10px_#3F3F46]"
           }`}
           style={{ opacity: borderIntensity / 100 }}
         />
@@ -1002,15 +1093,9 @@ export default function App() {
       <div className="absolute bottom-0 left-0 right-0 h-[3px] overflow-hidden pointer-events-none z-40">
         <div
           className={`w-full h-full animate-beam-bottom ${
-            borderTheme === "amber"
-              ? "vintage-amber-border shadow-[0_0_12px_#D97706]"
-              : borderTheme === "phosphor"
-              ? "phosphor-green-border shadow-[0_0_12px_#059669]"
-              : borderTheme === "typewriter"
-              ? "retro-typewriter-border shadow-[0_0_10px_#A8A29E]"
-              : borderTheme === "assistant"
-              ? "google-assistant-border shadow-[0_0_12px_#34A853]"
-              : "arc-reactor-border shadow-[0_0_12px_#00F0FF]"
+            borderTheme === "classic-blue"
+              ? "classic-blue-border shadow-[0_0_12px_#1D4ED8]"
+              : "classic-black-border shadow-[0_0_10px_#27272A]"
           }`}
           style={{ opacity: borderIntensity / 100 }}
         />
@@ -1018,15 +1103,9 @@ export default function App() {
       <div className="absolute top-0 left-0 bottom-0 w-[3px] overflow-hidden pointer-events-none z-40">
         <div
           className={`w-full h-full animate-beam-left ${
-            borderTheme === "amber"
-              ? "vintage-amber-border shadow-[0_0_12px_#B45309]"
-              : borderTheme === "phosphor"
-              ? "phosphor-green-border shadow-[0_0_12px_#34D399]"
-              : borderTheme === "typewriter"
-              ? "retro-typewriter-border shadow-[0_0_10px_#78716C]"
-              : borderTheme === "assistant"
-              ? "google-assistant-border shadow-[0_0_12px_#9B51E0]"
-              : "arc-reactor-border shadow-[0_0_12px_#00F0FF]"
+            borderTheme === "classic-blue"
+              ? "classic-blue-border shadow-[0_0_12px_#1E40AF]"
+              : "classic-black-border shadow-[0_0_10px_#18181B]"
           }`}
           style={{ opacity: borderIntensity / 100 }}
         />
@@ -1034,15 +1113,9 @@ export default function App() {
       <div className="absolute top-0 right-0 bottom-0 w-[3px] overflow-hidden pointer-events-none z-40">
         <div
           className={`w-full h-full animate-beam-right ${
-            borderTheme === "amber"
-              ? "vintage-amber-border shadow-[0_0_12px_#F59E0B]"
-              : borderTheme === "phosphor"
-              ? "phosphor-green-border shadow-[0_0_12px_#10B981]"
-              : borderTheme === "typewriter"
-              ? "retro-typewriter-border shadow-[0_0_10px_#E7E5E4]"
-              : borderTheme === "assistant"
-              ? "google-assistant-border shadow-[0_0_12px_#EA4335]"
-              : "arc-reactor-border shadow-[0_0_12px_#00F0FF]"
+            borderTheme === "classic-blue"
+              ? "classic-blue-border shadow-[0_0_12px_#3B82F6]"
+              : "classic-black-border shadow-[0_0_10px_#3F3F46]"
           }`}
           style={{ opacity: borderIntensity / 100 }}
         />
@@ -1050,88 +1123,106 @@ export default function App() {
 
       {/* Sweep animation during screen capture */}
       {state === "capturing" && (
-        <div className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_20px_#F59E0B] animate-laser-sweep pointer-events-none z-50" />
+        <div className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-blue-500 to-transparent shadow-[0_0_20px_#2563EB] animate-laser-sweep pointer-events-none z-50" />
       )}
 
-      {/* THE TWO-LINED TOP PANEL HUD (Old-School Typewriter & Vintage Terminal Interface) */}
-      <div className="pointer-events-auto absolute top-2.5 left-1/2 -translate-x-1/2 w-[96%] max-w-5xl rounded-xl border border-stone-700/80 bg-[#121110]/98 backdrop-blur-2xl shadow-[0_16px_50px_rgba(0,0,0,0.92)] select-none z-50 flex flex-col overflow-hidden transition-all duration-300">
+      {/* THE TWO-LINED TOP PANEL HUD (Classic Oxford Blue & Matte Black Interface) */}
+      <div className="pointer-events-auto absolute top-2.5 left-1/2 -translate-x-1/2 w-[96%] max-w-5xl rounded-xl border border-blue-900/60 bg-[#0A0A0A]/98 backdrop-blur-2xl shadow-[0_16px_50px_rgba(0,0,0,0.95)] select-none z-50 flex flex-col overflow-hidden transition-all duration-300">
         {/* LINE 1: Options & Controls Bar (Clean Non-Overlapping Layout) */}
-        <div className="flex items-center justify-between px-3.5 py-2 border-b border-stone-800 bg-[#1A1816]/95 text-xs gap-2 overflow-x-auto no-scrollbar">
+        <div className="flex items-center justify-between px-3.5 py-2 border-b border-blue-950 bg-[#111111]/95 text-xs gap-2 overflow-x-auto no-scrollbar">
           {/* Left: Brand Identity & Status Indicator */}
           <div className="flex items-center gap-2 shrink-0">
-            <span className="w-2.5 h-2.5 rounded-sm bg-amber-500 shadow-[0_0_8px_#F59E0B]" />
-            <span className="font-mono font-black text-amber-300 tracking-wider text-[11px]">
-              TYPE // TUTOR
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-[0_0_8px_#2563EB]" />
+            <span className="font-bold text-white tracking-wide text-xs">
+              THE ACADEMIC TUTOR
             </span>
             <span
-              className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase ${
+              className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase ${
                 state === "thinking"
-                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/50 animate-pulse"
+                  ? "bg-blue-900/60 text-blue-200 border border-blue-500 animate-pulse"
                   : state === "capturing"
-                  ? "bg-stone-800 text-stone-200 border border-stone-600 animate-pulse"
+                  ? "bg-stone-800 text-gray-200 border border-stone-600 animate-pulse"
                   : state === "ready"
-                  ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/50"
+                  ? "bg-blue-950 text-blue-200 border border-blue-600"
                   : state === "error"
                   ? "bg-rose-950/80 text-rose-300 border border-rose-500/50"
-                  : "bg-stone-900 text-stone-400 border border-stone-800"
+                  : "bg-[#18181B] text-gray-400 border border-stone-800"
               }`}
             >
               {state === "thinking"
-                ? "COMPUTING"
+                ? "SOLVING"
                 : state === "capturing"
                 ? "SCANNING"
                 : state === "ready"
                 ? "READY"
                 : state === "error"
-                ? "FAULT"
+                ? "ERROR"
                 : "STANDBY"}
             </span>
           </div>
 
-          {/* Center: Primary Actions & Compact Mode Keycaps */}
+          {/* Center: Primary Actions & Mode Keycaps */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* Primary Typewriter Solve Keycap */}
+            {/* Primary Classic Solve Keycap */}
             <button
               onClick={() => handleTrigger()}
               disabled={state === "capturing" || state === "thinking"}
-              className="px-3 py-1.5 rounded bg-gradient-to-b from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-mono font-black text-[11px] flex items-center gap-1.5 shadow-[0_2px_0_#78350F] active:translate-y-0.5 active:shadow-none transition-all disabled:opacity-50 cursor-pointer border border-amber-300/40"
+              className="px-3.5 py-1.5 rounded bg-blue-700 hover:bg-blue-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-[0_2px_0_#1E3A8A] active:translate-y-0.5 active:shadow-none transition-all disabled:opacity-50 cursor-pointer border border-blue-400"
               title="Read & solve active viewport question with sub-second AI inference"
             >
-              <Zap className="w-3.5 h-3.5 fill-current text-stone-950" />
+              <Zap className="w-3.5 h-3.5 fill-current text-white" />
               <span>SOLVE SCREEN</span>
-              <span className="text-[9px] px-1 py-0.2 rounded bg-stone-950/30 font-mono font-bold text-amber-100">
+              <span className="text-[9px] px-1 py-0.2 rounded bg-black/40 font-bold text-blue-100 hidden sm:inline">
                 {hotkeyInfo.shortcut}
               </span>
             </button>
 
-            {/* Real Screen Capture Keycap (Live user screen in browser) */}
+            {/* Real Screen Capture Keycap */}
             {!isTauri && (
               <button
                 onClick={captureUserScreen}
                 disabled={state === "capturing" || state === "thinking"}
-                className="px-2.5 py-1.5 rounded bg-stone-800 hover:bg-stone-700 text-amber-200 font-mono font-bold text-[10px] flex items-center gap-1.5 border border-stone-700 shadow-[0_2px_0_#0C0A09] active:translate-y-0.5 transition-all disabled:opacity-50 cursor-pointer"
+                className="px-3 py-1.5 rounded bg-[#18181B] hover:bg-[#27272A] text-blue-200 font-bold text-xs flex items-center gap-1.5 border border-blue-900/80 shadow-[0_2px_0_#000] active:translate-y-0.5 transition-all disabled:opacity-50 cursor-pointer"
                 title="Select and capture your real window or screen, or paste with Ctrl+V"
               >
-                <Camera className="w-3 h-3 text-amber-400" />
-                <span>REAL SCREEN</span>
+                <Camera className="w-3.5 h-3.5 text-blue-400" />
+                <span className="hidden sm:inline">SELECT WINDOW</span>
+                <span className="inline sm:hidden">WINDOW</span>
               </button>
             )}
 
-            {/* Compact Mode Selector Keycaps */}
-            <div className="flex items-center bg-[#0C0A09] p-0.5 rounded border border-stone-800">
+            {/* Always-On-Top Floating Window Toggle (Document Picture-in-Picture) */}
+            {!isTauri && (
+              <button
+                onClick={togglePictureInPicture}
+                className={`px-3 py-1.5 rounded font-bold text-xs flex items-center gap-1.5 border shadow-[0_2px_0_#000] active:translate-y-0.5 transition-all cursor-pointer ${
+                  pipContainer
+                    ? "bg-blue-900 text-white border-blue-400"
+                    : "bg-[#18181B] hover:bg-[#27272A] text-gray-200 border-stone-700"
+                }`}
+                title="Open always-on-top floating HUD that stays visible over your target window"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+                <span className="hidden md:inline">{pipContainer ? "FLOAT ACTIVE" : "FLOAT ON TOP"}</span>
+                <span className="inline md:hidden">FLOAT</span>
+              </button>
+            )}
+
+            {/* Mode Selector */}
+            <div className="flex items-center bg-[#111111] p-0.5 rounded border border-blue-950">
               {[
-                { id: "quiz", label: "🎯 QUIZ", short: "🎯", title: "Direct multiple choice letter" },
-                { id: "code", label: "🐞 CODE", short: "🐞", title: "Code bug and syntax fix" },
-                { id: "summary", label: "📝 MEMO", short: "📝", title: "Executive summary memo" },
+                { id: "quiz", label: "I. Quiz", short: "Quiz", title: "Direct multiple choice letter" },
+                { id: "code", label: "II. Code", short: "Code", title: "Code bug & syntax solver" },
+                { id: "summary", label: "III. Memo", short: "Memo", title: "Scholarly summary memo" },
               ].map((m) => (
                 <button
                   key={m.id}
                   type="button"
                   onClick={() => updateSolverMode(m.id as any)}
-                  className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition-all ${
+                  className={`px-2.5 py-1 rounded text-xs font-bold transition-all ${
                     solverMode === m.id
-                      ? "bg-amber-950 text-amber-300 border border-amber-500/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]"
-                      : "text-stone-400 hover:text-stone-200"
+                      ? "bg-blue-900 text-white border border-blue-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]"
+                      : "text-gray-400 hover:text-white"
                   }`}
                   title={m.title}
                 >
@@ -1144,52 +1235,44 @@ export default function App() {
 
           {/* Right: Theme Cycler, Config, Demo Screen & Dismiss */}
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* Retro Theme Cycler */}
+            {/* Classic Border Theme Toggle */}
             <button
               onClick={() => {
-                const order: BorderTheme[] = ["amber", "phosphor", "typewriter", "assistant", "arc"];
-                const idx = order.indexOf(borderTheme);
-                const next = order[(idx + 1) % order.length];
+                const next = borderTheme === "classic-blue" ? "classic-black" : "classic-blue";
                 updateBorderTheme(next);
               }}
-              className="text-[10px] px-2 py-1 rounded border border-stone-700/80 bg-stone-900 hover:bg-stone-800 text-amber-300 font-mono flex items-center gap-1 transition-colors"
-              title="Cycle old-school typewriter and CRT border styles"
+              className="text-xs px-2.5 py-1 rounded border border-blue-900/60 bg-[#141414] hover:bg-[#1E1E1E] text-blue-300 flex items-center gap-1 transition-colors"
+              title="Toggle classic blue or black border"
             >
-              <span>
-                {borderTheme === "amber" && "🖮 AMBER CRT"}
-                {borderTheme === "phosphor" && "📟 VT-100"}
-                {borderTheme === "typewriter" && "📄 TYPEWRITER"}
-                {borderTheme === "assistant" && "AURORA"}
-                {borderTheme === "arc" && "ARC"}
-              </span>
+              <span>{borderTheme === "classic-blue" ? "CLASSIC BLUE" : "MATTE BLACK"}</span>
             </button>
 
             {/* Config / Settings Drawer */}
             <button
               onClick={() => setShowSettings(!showSettings)}
-              className={`text-[10px] px-2 py-1 rounded border transition-colors flex items-center gap-1 font-mono ${
+              className={`text-xs px-2.5 py-1 rounded border transition-colors flex items-center gap-1 ${
                 showSettings
-                  ? "border-amber-400 bg-amber-950 text-amber-200 font-bold"
-                  : "border-stone-700/80 bg-stone-900 text-stone-300 hover:text-amber-200"
+                  ? "border-blue-400 bg-blue-950 text-white font-bold"
+                  : "border-stone-800 bg-[#141414] text-gray-300 hover:text-white"
               }`}
               title="API configuration & model settings"
             >
-              <Settings className="w-3 h-3" />
-              <span className="hidden sm:inline">CONFIG</span>
+              <Settings className="w-3 h-3 text-blue-400" />
+              <span className="hidden sm:inline">SETTINGS</span>
             </button>
 
             {/* Simulated Desktop Preview Toggle (Browser mode only) */}
             {!isTauri && (
               <button
                 onClick={() => setSimulateDesktop(!simulateDesktop)}
-                className={`text-[9px] px-2 py-1 rounded border transition-colors flex items-center gap-1 font-mono ${
+                className={`text-[10px] px-2 py-1 rounded border transition-colors flex items-center gap-1 ${
                   simulateDesktop
-                    ? "border-emerald-600 bg-emerald-950 text-emerald-300 font-bold"
-                    : "border-stone-800 bg-stone-900 text-stone-400 hover:text-stone-200"
+                    ? "border-blue-600 bg-blue-950 text-blue-200 font-bold"
+                    : "border-stone-800 bg-[#141414] text-gray-400 hover:text-gray-200"
                 }`}
-                title="Toggle simulated quiz window to test in-place answering"
+                title="Toggle simulated quiz window"
               >
-                <Monitor className="w-2.5 h-2.5" />
+                <Monitor className="w-2.5 h-2.5 text-blue-400" />
                 <span className="hidden sm:inline">{simulateDesktop ? "DEMO ON" : "DEMO OFF"}</span>
               </button>
             )}
@@ -1197,7 +1280,7 @@ export default function App() {
             {/* Dismiss Button */}
             <button
               onClick={handleDismiss}
-              className="p-1 rounded text-stone-400 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+              className="p-1 rounded text-gray-400 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
               title="Dismiss / Minimize Overlay"
             >
               <X className="w-4 h-4" />
@@ -1206,37 +1289,37 @@ export default function App() {
         </div>
 
         {/* LINE 2: Instant Results Bar (Spacious, Uncrowded Layout) */}
-        <div className="flex items-center px-4 py-2.5 bg-[#0C0A09]/95 min-h-[46px] text-xs border-t border-stone-800/80 font-mono">
+        <div className="flex items-center px-4 py-2.5 bg-[#0A0A0A]/98 min-h-[46px] text-xs border-t border-blue-950/80">
           {state === "idle" && (
-            <div className="flex items-center justify-between w-full text-stone-400 font-mono text-[11px] gap-2">
+            <div className="flex items-center justify-between w-full text-gray-400 text-xs gap-2">
               <div className="flex items-center gap-2 truncate min-w-0">
-                <span className="w-2 h-2 rounded-full bg-amber-500/80 animate-pulse shrink-0" />
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
                 <span className="truncate">
-                  Ready. Click <strong className="text-amber-300 font-bold">SOLVE SCREEN</strong> (or press{" "}
-                  <kbd className="px-1 py-0.5 rounded bg-stone-900 border border-stone-700 text-amber-200 font-bold">
+                  Ready. Click <strong className="text-white font-bold">SOLVE SCREEN</strong> (or press{" "}
+                  <kbd className="px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800 text-blue-200 font-bold">
                     {hotkeyInfo.shortcut}
                   </kbd>
-                  ) or <strong className="text-amber-300 font-bold">REAL SCREEN</strong> to capture your window.
+                  ) or <strong className="text-blue-300 font-bold">FLOAT ON TOP</strong> to keep overlay visible over your target window.
                 </span>
               </div>
-              <span className="text-[10px] text-stone-500 font-mono shrink-0 hidden md:inline">
-                ⚡ Sub-Second Direct Output
+              <span className="text-xs text-gray-500 shrink-0 hidden md:inline">
+                Instant Sub-Second In-Place Output
               </span>
             </div>
           )}
 
           {(state === "capturing" || state === "thinking") && (
-            <div className="flex items-center justify-between w-full text-xs font-mono text-amber-200">
+            <div className="flex items-center justify-between w-full text-xs text-blue-200">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-3.5 h-3.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin shrink-0" />
-                <span className="animate-pulse font-bold text-amber-100 truncate">
+                <div className="w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                <span className="animate-pulse font-bold text-white truncate">
                   {state === "capturing"
-                    ? "Capturing screen frame..."
-                    : "Executing visual OCR & identifying winning option..."}
+                    ? "Capturing target window..."
+                    : "Analyzing question & computing solution..."}
                 </span>
               </div>
-              <span className="text-[10px] text-stone-500 font-mono shrink-0">
-                {settings.model} // FAST-PATH
+              <span className="text-xs text-gray-500 shrink-0">
+                {settings.model} // FAST PATH
               </span>
             </div>
           )}
@@ -1244,15 +1327,15 @@ export default function App() {
           {state === "ready" && parsedAnswer && (
             <div className="flex items-center justify-between w-full gap-3 min-w-0">
               <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
-                {/* Typewriter Stamp Badge */}
+                {/* Royal Blue Seal Badge */}
                 {/^\([A-E]\)$/i.test(parsedAnswer.option) ? (
-                  <div className="shrink-0 px-3.5 py-1 rounded bg-emerald-950/90 border-2 border-emerald-500 text-emerald-300 font-black text-sm tracking-wider font-mono shadow-[0_0_12px_rgba(16,185,129,0.3)] flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="text-[15px]">{parsedAnswer.option}</span>
+                  <div className="shrink-0 px-3.5 py-1 rounded bg-blue-800 border-2 border-blue-400 text-white font-bold text-base tracking-wide shadow-[0_0_12px_rgba(37,99,235,0.4)] flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-blue-200 shrink-0" />
+                    <span>{parsedAnswer.option}</span>
                   </div>
                 ) : (
-                  <div className="shrink-0 px-2.5 py-1 rounded bg-amber-950/90 border-2 border-amber-500 text-amber-300 font-extrabold text-xs tracking-wider font-mono shadow-[0_0_10px_rgba(245,158,11,0.25)] flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <div className="shrink-0 px-3 py-1 rounded bg-blue-900 border-2 border-blue-500 text-white font-bold text-xs tracking-wide shadow-[0_0_10px_rgba(37,99,235,0.3)] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-300 shrink-0" />
                     <span>{parsedAnswer.option}</span>
                   </div>
                 )}
@@ -1260,7 +1343,7 @@ export default function App() {
                 {/* Option Text: allows shrinking and truncating so it never pushes the right side */}
                 {parsedAnswer.text && (
                   <span
-                    className="text-xs font-bold text-stone-100 shrink min-w-0 max-w-sm lg:max-w-md truncate font-mono"
+                    className="text-sm font-bold text-white shrink min-w-0 max-w-sm lg:max-w-md truncate"
                     title={parsedAnswer.text}
                   >
                     {parsedAnswer.text}
@@ -1269,7 +1352,7 @@ export default function App() {
 
                 {/* Confidence Pill */}
                 {parsedAnswer.confidence && (
-                  <span className="shrink-0 text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-amber-950/80 border border-amber-600/70 text-amber-300">
+                  <span className="shrink-0 text-xs px-2 py-0.5 rounded font-bold bg-blue-950 border border-blue-800 text-blue-300">
                     {parsedAnswer.confidence}
                   </span>
                 )}
@@ -1277,29 +1360,29 @@ export default function App() {
                 {/* 1-Sentence Rationale */}
                 {parsedAnswer.why && (
                   <span
-                    className="text-[11px] text-stone-300 font-mono truncate min-w-0 flex-1 hidden lg:inline"
+                    className="text-xs text-gray-300 truncate min-w-0 flex-1 hidden lg:inline italic"
                     title={parsedAnswer.why}
                   >
-                    <strong className="text-amber-400 font-mono">NOTE:</strong> {parsedAnswer.why}
+                    <strong className="text-blue-400 not-italic">Note:</strong> {parsedAnswer.why}
                   </span>
                 )}
               </div>
 
               {/* Action Buttons: anchored on the right, never squeezed */}
-              <div className="shrink-0 flex items-center gap-1.5 font-mono ml-auto">
+              <div className="shrink-0 flex items-center gap-1.5 ml-auto">
                 <button
                   onClick={handleCopyAnswer}
-                  className="px-2.5 py-1 rounded bg-stone-900 hover:bg-stone-800 border border-stone-700 text-amber-300 text-[10px] flex items-center gap-1 transition-all font-mono font-bold shadow-[0_1px_0_#000]"
+                  className="px-2.5 py-1 rounded bg-[#18181B] hover:bg-[#27272A] border border-blue-900/60 text-blue-200 text-xs flex items-center gap-1 transition-all font-bold shadow"
                   title="Copy option to clipboard"
                 >
                   {copiedAnswer ? (
                     <>
-                      <Check className="w-3 h-3 text-emerald-400" />
-                      <span className="text-emerald-300">COPIED!</span>
+                      <Check className="w-3 h-3 text-blue-400" />
+                      <span className="text-white">COPIED</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="w-3 h-3 text-amber-400" />
+                      <Copy className="w-3 h-3 text-blue-400" />
                       <span>COPY</span>
                     </>
                   )}
@@ -1307,12 +1390,12 @@ export default function App() {
 
                 <button
                   onClick={() => setShowDetails(!showDetails)}
-                  className={`px-2.5 py-1 rounded border text-[10px] flex items-center gap-1 transition-all font-mono shadow-[0_1px_0_#000] ${
+                  className={`px-2.5 py-1 rounded border text-xs flex items-center gap-1 transition-all shadow ${
                     showDetails
-                      ? "border-amber-400 bg-amber-950 text-amber-200 font-bold"
-                      : "border-stone-700 bg-stone-900 hover:bg-stone-800 text-stone-300"
+                      ? "border-blue-400 bg-blue-950 text-white font-bold"
+                      : "border-stone-800 bg-[#18181B] hover:bg-[#27272A] text-gray-300"
                   }`}
-                  title="Toggle detailed rationale drawer"
+                  title="Toggle detailed proof drawer"
                 >
                   {showDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                   <span>{showDetails ? "HIDE INFO" : "DETAILS"}</span>
@@ -1320,10 +1403,10 @@ export default function App() {
 
                 <button
                   onClick={() => handleTrigger()}
-                  className="px-2.5 py-1 rounded bg-stone-900 hover:bg-stone-800 border border-stone-700 text-amber-200 text-[10px] flex items-center gap-1 transition-all font-mono shadow-[0_1px_0_#000]"
+                  className="px-2.5 py-1 rounded bg-[#18181B] hover:bg-[#27272A] border border-blue-900/60 text-blue-200 text-xs flex items-center gap-1 transition-all shadow"
                   title="Re-scan current screen"
                 >
-                  <RotateCcw className="w-3 h-3" />
+                  <RotateCcw className="w-3 h-3 text-blue-400" />
                   <span>RESCAN</span>
                 </button>
               </div>
@@ -1331,7 +1414,7 @@ export default function App() {
           )}
 
           {state === "error" && (
-            <div className="flex items-center justify-between w-full gap-3 text-rose-300 text-xs font-mono">
+            <div className="flex items-center justify-between w-full gap-3 text-rose-300 text-xs">
               <div className="flex items-center gap-2 truncate">
                 <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
                 <span className="truncate font-bold">
@@ -1345,14 +1428,14 @@ export default function App() {
                     setErrorMessage(null);
                     handleTrigger();
                   }}
-                  className="px-2.5 py-1 rounded bg-rose-950/80 border border-rose-400 text-rose-200 text-[10px] font-bold hover:bg-rose-900 transition-all flex items-center gap-1"
+                  className="px-2.5 py-1 rounded bg-blue-950 border border-blue-400 text-blue-200 text-[10px] font-bold hover:bg-blue-900 transition-all flex items-center gap-1"
                 >
                   <Zap className="w-3 h-3" />
                   <span>TRY 2.0-FLASH</span>
                 </button>
                 <button
                   onClick={() => setShowSettings(true)}
-                  className="px-2 py-1 rounded bg-stone-900 border border-stone-700 text-amber-300 text-[10px]"
+                  className="px-2 py-1 rounded bg-[#18181B] border border-stone-700 text-blue-300 text-[10px]"
                 >
                   CONFIG
                 </button>
@@ -1368,23 +1451,23 @@ export default function App() {
           )}
         </div>
 
-        {/* EXPANDABLE DRAWER: Detailed Explanation & Follow-up Q&A (Typewriter Memo Style) */}
+        {/* EXPANDABLE DRAWER: Detailed Explanation & Follow-up Q&A (Academic Memo Style) */}
         {showDetails && parsedAnswer && (
-          <div className="p-4 border-t border-stone-800 bg-[#161412] max-h-[340px] overflow-y-auto space-y-3 select-text font-mono">
-            <div className="flex items-center justify-between border-b border-stone-800 pb-2">
-              <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-amber-400" />
-                <span>EXECUTIVE TUTORING MEMO</span>
+          <div className="p-4 border-t border-blue-950 bg-[#0F0F11] max-h-[340px] overflow-y-auto space-y-3 select-text">
+            <div className="flex items-center justify-between border-b border-blue-950 pb-2">
+              <span className="text-xs font-bold text-blue-300 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-blue-400" />
+                <span>EXECUTIVE TUTORING PROOF</span>
               </span>
               <button
                 onClick={() => setShowDetails(false)}
-                className="text-[10px] text-stone-500 hover:text-amber-300"
+                className="text-[10px] text-gray-500 hover:text-blue-300"
               >
-                [ CLOSE MEMO ]
+                [ CLOSE ]
               </button>
             </div>
 
-            <div className="text-xs leading-relaxed text-stone-200 font-mono prose prose-invert max-w-none">
+            <div className="text-xs leading-relaxed text-gray-200 prose prose-invert max-w-none">
               <ReactMarkdown>{parsedAnswer.raw}</ReactMarkdown>
             </div>
 
@@ -1394,13 +1477,13 @@ export default function App() {
                 type="text"
                 value={followUp}
                 onChange={(e) => setFollowUp(e.target.value)}
-                placeholder="Ask follow-up (e.g. 'Why not option C?')..."
-                className="flex-1 bg-[#0C0A09] border border-stone-700 rounded px-3 py-1.5 text-xs text-amber-100 outline-none focus:border-amber-400 font-mono"
+                placeholder="Ask follow-up (e.g. 'Why is option C incorrect?')..."
+                className="flex-1 bg-[#050505] border border-blue-950 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500"
               />
               <button
                 type="submit"
                 disabled={!followUp.trim() || state === "thinking"}
-                className="px-3 py-1.5 rounded bg-amber-600/30 hover:bg-amber-600/50 border border-amber-500/50 text-amber-200 text-xs font-bold transition-all disabled:opacity-40 flex items-center gap-1 font-mono"
+                className="px-3 py-1.5 rounded bg-blue-700 hover:bg-blue-600 border border-blue-500 text-white text-xs font-bold transition-all disabled:opacity-40 flex items-center gap-1"
               >
                 <Send className="w-3 h-3" />
                 <span>ASK</span>
@@ -1409,17 +1492,17 @@ export default function App() {
           </div>
         )}
 
-        {/* EXPANDABLE DRAWER: Settings / API Configuration (Mechanical Vintage Panel) */}
+        {/* EXPANDABLE DRAWER: Settings / API Configuration */}
         {showSettings && (
-          <div className="p-4 border-t border-stone-800 bg-[#161412] text-xs space-y-3 font-mono">
-            <div className="flex items-center justify-between text-amber-300 font-bold">
+          <div className="p-4 border-t border-blue-950 bg-[#0F0F11] text-xs space-y-3">
+            <div className="flex items-center justify-between text-blue-300 font-bold">
               <span className="flex items-center gap-1.5">
-                <Key className="w-3.5 h-3.5 text-amber-400" />
+                <Key className="w-3.5 h-3.5 text-blue-400" />
                 <span>AI PROTOCOL & API CONFIGURATION</span>
               </span>
               <button
                 onClick={() => setShowSettings(false)}
-                className="text-[10px] text-stone-500 hover:text-amber-300"
+                className="text-[10px] text-gray-500 hover:text-blue-300"
               >
                 [ CLOSE ]
               </button>
@@ -1427,7 +1510,7 @@ export default function App() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[9px] text-stone-400 block mb-1">AI PROVIDER</label>
+                <label className="text-[10px] text-gray-400 block mb-1">AI PROVIDER</label>
                 <select
                   value={settings.provider}
                   onChange={(e) => {
@@ -1437,7 +1520,7 @@ export default function App() {
                       model: prov === "gemini" ? "gemini-2.0-flash" : "gpt-4o-mini",
                     });
                   }}
-                  className="w-full bg-[#0C0A09] border border-stone-700 rounded px-2.5 py-1.5 text-xs text-amber-100 outline-none focus:border-amber-400"
+                  className="w-full bg-[#050505] border border-stone-800 rounded px-2.5 py-1.5 text-xs text-white outline-none focus:border-blue-500"
                 >
                   <option value="gemini">Google Gemini (Free API)</option>
                   <option value="openai">OpenAI / Compatible</option>
@@ -1445,19 +1528,19 @@ export default function App() {
               </div>
 
               <div>
-                <label className="text-[9px] text-stone-400 block mb-1">VISION MODEL</label>
+                <label className="text-[10px] text-gray-400 block mb-1">VISION MODEL</label>
                 <input
                   type="text"
                   value={settings.model}
                   onChange={(e) => updateSettings({ model: e.target.value.trim() })}
                   placeholder={settings.provider === "gemini" ? "gemini-2.0-flash" : "gpt-4o-mini"}
-                  className="w-full bg-[#0C0A09] border border-stone-700 rounded px-2.5 py-1.5 text-xs text-amber-100 outline-none focus:border-amber-400"
+                  className="w-full bg-[#050505] border border-stone-800 rounded px-2.5 py-1.5 text-xs text-white outline-none focus:border-blue-500"
                 />
                 {settings.provider === "gemini" && (
                   <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                    <span className="text-[8px] text-stone-500">SPEED PRESETS:</span>
+                    <span className="text-[9px] text-gray-500">FAST PATHS:</span>
                     {[
-                      { id: "gemini-2.0-flash", label: "2.0-flash (Ultra Fast)" },
+                      { id: "gemini-2.0-flash", label: "2.0-flash (Sub-Second)" },
                       { id: "gemini-1.5-flash", label: "1.5-flash (Standard)" },
                       { id: "gemini-1.5-flash-8b", label: "1.5-8b (Fast)" },
                     ].map((m) => (
@@ -1465,10 +1548,10 @@ export default function App() {
                         key={m.id}
                         type="button"
                         onClick={() => updateSettings({ model: m.id })}
-                        className={`text-[8px] px-2 py-0.5 rounded border transition-colors ${
+                        className={`text-[9px] px-2 py-0.5 rounded border transition-colors ${
                           settings.model === m.id
-                            ? "border-amber-400 bg-amber-950 text-amber-100 font-bold"
-                            : "border-stone-800 bg-[#0C0A09] hover:border-stone-700 text-stone-400"
+                            ? "border-blue-400 bg-blue-950 text-white font-bold"
+                            : "border-stone-800 bg-[#0A0A0A] hover:border-stone-700 text-gray-400"
                         }`}
                       >
                         {m.label}
@@ -1481,8 +1564,8 @@ export default function App() {
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[9px] text-stone-400 flex items-center gap-1">
-                  <Key className="w-2.5 h-2.5 text-amber-400" />
+                <label className="text-[10px] text-gray-400 flex items-center gap-1">
+                  <Key className="w-2.5 h-2.5 text-blue-400" />
                   <span>API KEY {settings.provider === "gemini" && "(Google AI Studio)"}</span>
                 </label>
                 {settings.provider === "gemini" && (
@@ -1490,7 +1573,7 @@ export default function App() {
                     href="https://aistudio.google.com/app/apikey"
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[9px] text-amber-400 hover:text-amber-200 flex items-center gap-0.5 underline"
+                    className="text-[10px] text-blue-400 hover:text-blue-200 flex items-center gap-0.5 underline"
                   >
                     <span>Get Free Gemini Key</span>
                     <ExternalLink className="w-2.5 h-2.5" />
@@ -1506,7 +1589,7 @@ export default function App() {
                   })
                 }
                 placeholder="Paste key (AIza... or sk-...) or leave empty for simulation"
-                className="w-full bg-[#0C0A09] border border-stone-700 rounded px-2.5 py-1.5 text-xs text-amber-100 outline-none focus:border-amber-400"
+                className="w-full bg-[#050505] border border-stone-800 rounded px-2.5 py-1.5 text-xs text-white outline-none focus:border-blue-500"
               />
             </div>
 
@@ -1516,35 +1599,35 @@ export default function App() {
                 <button
                   onClick={handleTestConnection}
                   disabled={testConnectionStatus.testing || !settings.apiKey.trim()}
-                  className="shrink-0 px-3 py-1.5 rounded border border-amber-600/70 bg-amber-950/70 hover:bg-amber-900/70 text-amber-300 text-[10px] flex items-center gap-1.5 transition-all disabled:opacity-40 font-bold"
+                  className="shrink-0 px-3 py-1.5 rounded border border-blue-600 bg-blue-950 hover:bg-blue-900 text-blue-200 text-xs flex items-center gap-1.5 transition-all disabled:opacity-40 font-bold"
                 >
                   {testConnectionStatus.testing ? (
                     <>
-                      <div className="w-2.5 h-2.5 border border-amber-400 border-t-transparent rounded-full animate-spin" />
+                      <div className="w-2.5 h-2.5 border border-blue-400 border-t-transparent rounded-full animate-spin" />
                       <span>PROBING GOOGLE CLOUD...</span>
                     </>
                   ) : (
                     <>
-                      <Shield className="w-2.5 h-2.5 text-amber-400" />
+                      <Shield className="w-2.5 h-2.5 text-blue-400" />
                       <span>TEST & AUTO-DISCOVER MODEL</span>
                     </>
                   )}
                 </button>
-                <span className="text-[8px] text-stone-500 font-mono">
+                <span className="text-[9px] text-gray-500">
                   {settings.apiKey.trim() ? "KEY ENTERED" : "SIMULATION MODE"}
                 </span>
               </div>
 
               {testConnectionStatus.message && (
                 <div
-                  className={`text-[10px] p-2 rounded border leading-relaxed flex items-start gap-1.5 break-words ${
+                  className={`text-xs p-2 rounded border leading-relaxed flex items-start gap-1.5 break-words ${
                     testConnectionStatus.success
-                      ? "border-emerald-500/50 bg-emerald-950/40 text-emerald-300 font-mono"
-                      : "border-rose-500/50 bg-rose-950/40 text-rose-300 font-mono"
+                      ? "border-blue-500/50 bg-blue-950/40 text-blue-200"
+                      : "border-rose-500/50 bg-rose-950/40 text-rose-300"
                   }`}
                 >
                   {testConnectionStatus.success ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400 mt-0.5" />
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-blue-400 mt-0.5" />
                   ) : (
                     <XCircle className="w-3.5 h-3.5 shrink-0 text-rose-400 mt-0.5" />
                   )}
@@ -1553,9 +1636,9 @@ export default function App() {
               )}
             </div>
 
-            {/* Boundary CRT Intensity Slider */}
+            {/* Boundary Intensity Slider */}
             <div className="pt-2 border-t border-stone-800 flex items-center justify-between">
-              <span className="text-[9px] text-stone-400 font-bold">
+              <span className="text-[10px] text-gray-400 font-bold">
                 PERIMETER BORDER INTENSITY:
               </span>
               <div className="flex items-center gap-2">
@@ -1568,9 +1651,9 @@ export default function App() {
                     setBorderIntensity(Number(e.target.value));
                     localStorage.setItem("tutor_border_intensity", e.target.value);
                   }}
-                  className="w-28 h-1 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                  className="w-28 h-1 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
                 />
-                <span className="text-[9px] text-amber-400 font-mono w-6 text-right">
+                <span className="text-xs text-blue-400 w-6 text-right">
                   {borderIntensity}%
                 </span>
               </div>
@@ -1578,6 +1661,70 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Floating Always-On-Top Document Picture-in-Picture Portal */}
+      {pipContainer &&
+        createPortal(
+          <div
+            className="w-full h-full bg-[#0A0A0A] text-white p-3 flex flex-col justify-between select-none border-2 border-blue-800"
+            style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
+          >
+            {/* Top row in floating HUD */}
+            <div className="flex items-center justify-between border-b border-blue-950 pb-1 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_#2563EB]" />
+                <span className="font-bold tracking-wide text-white">THE ACADEMIC TUTOR</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded border border-blue-800 bg-blue-950 text-blue-300 font-bold">
+                  ALWAYS ON TOP
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => handleTrigger()}
+                  disabled={state === "thinking" || state === "capturing"}
+                  className="px-3 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white font-bold text-xs flex items-center gap-1 shadow cursor-pointer border border-blue-400 transition-all active:translate-y-0.5"
+                >
+                  <Zap className="w-3 h-3 text-white fill-current" />
+                  <span>SOLVE NOW</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom row in floating HUD */}
+            <div className="flex items-center justify-between pt-1 text-xs">
+              {state === "ready" && parsedAnswer ? (
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div className="px-2.5 py-0.5 rounded bg-blue-800 border border-blue-400 text-white font-bold text-sm shrink-0">
+                    {parsedAnswer.option}
+                  </div>
+                  <span className="font-bold text-white truncate shrink min-w-0 text-xs" title={parsedAnswer.text}>
+                    {parsedAnswer.text}
+                  </span>
+                  {parsedAnswer.confidence && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800 text-blue-300 shrink-0">
+                      {parsedAnswer.confidence}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="text-gray-400 text-xs italic">
+                  {state === "thinking"
+                    ? "Evaluating screen question..."
+                    : "Floating over your target window. Press Solve Now."}
+                </div>
+              )}
+              {state === "ready" && parsedAnswer && (
+                <button
+                  onClick={handleCopyAnswer}
+                  className="ml-2 px-2 py-0.5 rounded border border-blue-800 bg-blue-950 hover:bg-blue-900 text-blue-300 text-xs shrink-0 font-bold"
+                >
+                  COPY
+                </button>
+              )}
+            </div>
+          </div>,
+          pipContainer
+        )}
     </div>
   );
 }

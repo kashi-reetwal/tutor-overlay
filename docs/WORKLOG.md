@@ -213,3 +213,31 @@ One small note per change, newest last. If a change touched stack, capture, hotk
      1. **`[ 📸 REAL SCREEN ]`**: Uses Web Screen Capture (`navigator.mediaDevices.getDisplayMedia`) to select any monitor, application window, or browser tab with 1 click.
      2. **Clipboard Paste (`Ctrl+V`)**: Press `Win + Shift + S` anywhere to snip a question, then press `Ctrl+V` inside the Tutor Overlay to solve instantly.
      3. **Tauri Native Hotkey (`Alt+T` / `Alt+S`)**: Global transparent desktop capture across Windows.
+
+
+---
+
+## Milestone 8: Classic Black & Blue Retro Theme, Times New Roman Typography, Floating PiP HUD & GitHub Pages Deployment (2026-10-01)
+
+### Changes & Problems Solved
+1. **Classic Two-Color Retro Theme (Matte Black & Classic Oxford Blue)**:
+   - Eliminated funky neon/amber styling in favor of an academic, dignified retro aesthetic:
+     - **Palette**: Deep Obsidian Black (`#0A0A0A`, `#111111`, `#18181B`) and Classic Oxford Blue (`#1D4ED8`, `#2563EB`, `#1E40AF`).
+     - **Borders**: Sharp 1px/2px classic borders (`classic-blue-border` and `classic-black-border`).
+     - **Scrollbar**: Classic blue thumb on dark slate track.
+     - **Answer Badge**: Deep royal blue seal (`bg-blue-800`, `border-blue-400`) with crisp white lettering.
+
+2. **Times New Roman Typography**:
+   - Replaced modern monospace with scholarly Times New Roman typography (`"Times New Roman", Times, Georgia, serif`) across the entire HUD, buttons, drawers, and floating overlays.
+   - Clean academic Roman numerals for solver modes: *I. Quiz*, *II. Code Analysis*, *III. Scholarly Memo*.
+
+3. **Floating Always-On-Top Window (Document Picture-in-Picture)**:
+   - **Problem Solved**: When a student selected another window on their desktop, the web browser tab lost focus and was hidden behind that window.
+   - **Solution**: Implemented native Document Picture-in-Picture (`window.documentPictureInPicture`). Clicking **`[ 📌 FLOAT ON TOP ]`** launches a compact, native OS floating HUD that **stays always on top of ANY application window** on Windows. Students can click **`[ ⚡ SOLVE NOW ]`** and read instant answers directly over their quiz or exam window.
+
+4. **Real Screen Target Window Projection**:
+   - Capturing with **`[ 📸 SELECT WINDOW ]`** now projects the captured window frame directly into the overlay viewport with 100% clarity, displaying the answer stamp right over the question.
+
+5. **Automated Live Web Deployment (GitHub Pages & Vercel)**:
+   - Configured `base: "./"` in `frontend/vite.config.ts` for static host compatibility.
+   - Added `.github/workflows/deploy.yml` to automatically build and publish the frontend to GitHub Pages on every push to `main`.
