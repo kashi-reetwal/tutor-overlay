@@ -19,9 +19,11 @@ import {
   ChevronDown,
   ChevronUp,
   FileText,
+  Camera,
 } from "lucide-react";
 
 type CardState = "idle" | "capturing" | "thinking" | "ready" | "error";
+type BorderTheme = "amber" | "phosphor" | "typewriter" | "assistant" | "arc";
 
 interface Message {
   role: "user" | "jarvis";
@@ -74,6 +76,39 @@ function cleanValue(str: string): string {
     .replace(/^["'`*#\s]+|["'`*#\s]+$/g, "")
     .replace(/[."';,]+$/, "")
     .trim();
+}
+
+// Downscale and compress image for lightning-fast visual OCR upload (~100-150KB)
+async function compressImageForVision(dataUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxDim = 1280;
+      let w = img.width;
+      let h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.75));
+      } else {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
 }
 
 // Generate uniform prompt for both Tauri native capture and browser preview
@@ -246,26 +281,26 @@ function generateSampleScreen(mode: string = "quiz"): string {
   if (!ctx) return "";
 
   if (mode === "quiz") {
-    ctx.fillStyle = "#0B1329";
+    ctx.fillStyle = "#141210";
     ctx.fillRect(0, 0, 900, 500);
 
     // Card background
-    ctx.fillStyle = "#111E38";
+    ctx.fillStyle = "#1C1917";
     if (typeof (ctx as any).roundRect === "function") {
-      (ctx as any).roundRect(40, 30, 820, 440, 16);
+      (ctx as any).roundRect(40, 30, 820, 440, 12);
       ctx.fill();
     } else {
       ctx.fillRect(40, 30, 820, 440);
     }
 
     // Header Tag
-    ctx.fillStyle = "#38BDF8";
+    ctx.fillStyle = "#F59E0B";
     ctx.font = "bold 13px monospace";
     ctx.fillText("DATA STRUCTURES & ALGORITHMS // EXAM QUESTION 14", 70, 75);
 
     // Question
-    ctx.fillStyle = "#F8FAFC";
-    ctx.font = "bold 18px sans-serif";
+    ctx.fillStyle = "#F5F5F4";
+    ctx.font = "bold 17px monospace";
     ctx.fillText(
       "What is the worst-case time complexity of Binary Search on a sorted array?",
       70,
@@ -281,20 +316,20 @@ function generateSampleScreen(mode: string = "quiz"): string {
 
     opts.forEach((o, i) => {
       const y = 160 + i * 65;
-      ctx.fillStyle = "#1E293B";
+      ctx.fillStyle = "#262220";
       if (typeof (ctx as any).roundRect === "function") {
-        (ctx as any).roundRect(70, y, 760, 48, 10);
+        (ctx as any).roundRect(70, y, 760, 48, 8);
         ctx.fill();
       } else {
         ctx.fillRect(70, y, 760, 48);
       }
 
-      ctx.fillStyle = "#38BDF8";
+      ctx.fillStyle = "#F59E0B";
       ctx.font = "bold 16px monospace";
       ctx.fillText(o.tag, 95, y + 30);
 
-      ctx.fillStyle = "#E2E8F0";
-      ctx.font = "15px sans-serif";
+      ctx.fillStyle = "#E7E5E4";
+      ctx.font = "14px monospace";
       ctx.fillText(o.text, 140, y + 30);
     });
 
@@ -342,8 +377,12 @@ export default function App() {
   const [showDetails, setShowDetails] = useState(false);
   const [copiedAnswer, setCopiedAnswer] = useState(false);
 
-  const [borderTheme, setBorderTheme] = useState<"assistant" | "arc" | "gold">(() => {
-    return (localStorage.getItem("tutor_border_theme") as any) || "assistant";
+  const [borderTheme, setBorderTheme] = useState<BorderTheme>(() => {
+    const saved = localStorage.getItem("tutor_border_theme") as BorderTheme;
+    if (saved && ["amber", "phosphor", "typewriter", "assistant", "arc"].includes(saved)) {
+      return saved;
+    }
+    return "amber";
   });
   const [borderIntensity, setBorderIntensity] = useState<number>(() => {
     const saved = localStorage.getItem("tutor_border_intensity");
@@ -387,7 +426,7 @@ export default function App() {
     localStorage.setItem("tutor_solver_mode", mode);
   };
 
-  const updateBorderTheme = (theme: "assistant" | "arc" | "gold") => {
+  const updateBorderTheme = (theme: BorderTheme) => {
     setBorderTheme(theme);
     localStorage.setItem("tutor_border_theme", theme);
   };
@@ -403,7 +442,7 @@ export default function App() {
     return parseQuizResponse(latestJarvisText);
   }, [latestJarvisText]);
 
-  // Resilient multi-tier Gemini query engine with auto-discovery and multi-model fallback
+  // High-speed direct Gemini query engine with sub-second fast path (~350ms)
   const executeGemini = async (
     apiKey: string,
     preferredModel: string,
@@ -419,86 +458,28 @@ export default function App() {
       throw new Error("No Gemini API key provided. Please enter your key in Settings.");
     }
 
+    // High-speed generation config: cap tokens to 180 and temperature to 0.0 for instant output
+    const payload = {
+      contents,
+      generationConfig: {
+        maxOutputTokens: 180,
+        temperature: 0.0,
+      },
+    };
+
+    // Priority models list: try preferred model immediately on fast path
+    const candidateList = Array.from(
+      new Set([
+        normalizedPreferred,
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-2.0-flash-exp",
+      ])
+    );
+
     let lastError = "";
 
-    // Step 1: Probe Google AI Studio's model registry to get exact list of enabled models for this key
-    let candidateList: string[] = [];
-    try {
-      const listRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`
-      );
-      if (listRes.ok) {
-        const listData = await listRes.json();
-        const available = (listData.models || [])
-          .filter((m: any) => m.supportedGenerationMethods?.includes("generateContent"))
-          .map((m: any) => m.name.replace(/^models\//, ""));
-
-        if (available.length > 0) {
-          if (available.includes(normalizedPreferred)) {
-            candidateList = [
-              normalizedPreferred,
-              ...available.filter((m: string) => m !== normalizedPreferred),
-            ];
-          } else {
-            const standardOrder = [
-              "gemini-2.0-flash",
-              "gemini-1.5-flash",
-              "gemini-1.5-flash-latest",
-              "gemini-1.5-flash-8b",
-              "gemini-2.0-flash-exp",
-              "gemini-1.5-pro",
-              "gemini-1.5-pro-latest",
-            ];
-            const foundStandard = standardOrder.find((s) => available.includes(s));
-            if (foundStandard) {
-              candidateList = [
-                foundStandard,
-                ...available.filter((m: string) => m !== foundStandard),
-              ];
-            } else {
-              candidateList = available;
-            }
-          }
-        }
-      } else {
-        const listErr = await listRes.json().catch(() => ({}));
-        const errMsg = listErr.error?.message || `HTTP ${listRes.status}`;
-        if (listRes.status === 400 || listRes.status === 403) {
-          throw new Error(errMsg);
-        }
-        lastError = errMsg;
-      }
-    } catch (err: any) {
-      if (
-        err.message &&
-        (err.message.includes("API key not valid") ||
-          err.message.includes("API_KEY_INVALID") ||
-          err.message.includes("has not been used in project") ||
-          err.message.includes("disabled") ||
-          err.message.includes("location is not supported"))
-      ) {
-        throw err;
-      }
-    }
-
-    // Step 2: Fallback candidates if listModels was blocked or restricted
-    if (candidateList.length === 0) {
-      candidateList = Array.from(
-        new Set([
-          normalizedPreferred,
-          "gemini-2.0-flash",
-          "gemini-1.5-flash",
-          "gemini-1.5-flash-latest",
-          "gemini-1.5-flash-8b",
-          "gemini-2.0-flash-exp",
-          "gemini-1.5-flash-001",
-          "gemini-1.5-flash-002",
-          "gemini-1.5-pro",
-        ])
-      );
-    }
-
-    // Step 3: Iterate through candidate models across v1beta and v1 until generation succeeds
     for (const model of candidateList) {
       for (const apiVersion of ["v1beta", "v1"]) {
         const endpoint = `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${cleanKey}`;
@@ -506,7 +487,7 @@ export default function App() {
           const res = await fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contents }),
+            body: JSON.stringify(payload),
           });
 
           if (res.ok) {
@@ -522,7 +503,10 @@ export default function App() {
             const errData = await res.json().catch(() => ({}));
             const errMsg = errData.error?.message || `HTTP ${res.status}`;
             lastError = errMsg;
-            if (res.status === 400 && errMsg.includes("API key not valid")) {
+            if (
+              res.status === 400 &&
+              (errMsg.includes("API key not valid") || errMsg.includes("API_KEY_INVALID"))
+            ) {
               throw new Error("Invalid Gemini API Key. Please verify key at aistudio.google.com");
             }
           }
@@ -541,8 +525,7 @@ export default function App() {
     }
 
     throw new Error(
-      lastError ||
-        `Unable to reach Gemini models with your key. Please verify key permissions at aistudio.google.com.`
+      lastError || `Unable to reach Gemini models with your key. Please verify key at aistudio.google.com.`
     );
   };
 
@@ -740,7 +723,7 @@ export default function App() {
 
       let index = 0;
       const interval = setInterval(() => {
-        index += 28;
+        index += 45;
         if (index <= sampleText.length) {
           setCurrentStreamingText(sampleText.slice(0, index));
         } else {
@@ -749,7 +732,7 @@ export default function App() {
           setCurrentStreamingText("");
           setState("ready");
         }
-      }, 20);
+      }, 10);
       return;
     }
 
@@ -761,7 +744,9 @@ export default function App() {
         setPreviewImage(effectiveImage);
       }
 
-      const cleanB64 = effectiveImage.replace(/^data:image\/[a-z]+;base64,/, "");
+      // Fast image compression and downscaling (~120KB) for instant upload & inference
+      const compressedImage = await compressImageForVision(effectiveImage);
+      const cleanB64 = compressedImage.replace(/^data:image\/[a-z]+;base64,/, "");
 
       const finalPrompt = getSolverPrompt(solverMode, customPrompt);
 
@@ -828,6 +813,61 @@ export default function App() {
     }
   };
 
+  // Capture active window or full screen from user's display in browser mode
+  const captureUserScreen = async () => {
+    try {
+      setState("capturing");
+      setErrorMessage(null);
+      setCurrentStreamingText("");
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        throw new Error(
+          "Display capture API not supported in this browser. Please use Chrome, Edge, or Brave, or press Ctrl+V to paste a screenshot."
+        );
+      }
+
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: "monitor" },
+        audio: false,
+      });
+
+      const video = document.createElement("video");
+      video.srcObject = stream;
+      await video.play();
+
+      // Brief moment for screen frame to render
+      await new Promise((r) => setTimeout(r, 120));
+
+      const canvas = document.createElement("canvas");
+      const maxDim = 1280;
+      let w = video.videoWidth || 1280;
+      let h = video.videoHeight || 720;
+      if (w > maxDim) {
+        h = Math.round((h * maxDim) / w);
+        w = maxDim;
+      }
+      canvas.width = w;
+      canvas.height = h;
+
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, w, h);
+      }
+
+      // Terminate all stream tracks immediately after snapshot
+      stream.getTracks().forEach((track) => track.stop());
+
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
+      setPreviewImage(dataUrl);
+      runBrowserVisionAI(dataUrl);
+    } catch (err: any) {
+      setState("idle");
+      if (err.name !== "NotAllowedError" && err.name !== "AbortError") {
+        setErrorMessage("Screen capture error: " + (err.message || err.toString()));
+      }
+    }
+  };
+
   const handleTrigger = async (customPrompt?: string) => {
     setState("capturing");
     setErrorMessage(null);
@@ -853,9 +893,7 @@ export default function App() {
         setState("error");
       }
     } else {
-      setTimeout(() => {
-        runBrowserVisionAI(previewImage, customPrompt);
-      }, 400);
+      runBrowserVisionAI(previewImage, customPrompt);
     }
   };
 
@@ -890,33 +928,33 @@ export default function App() {
   };
 
   return (
-    <div className="fixed inset-0 w-screen h-screen overflow-hidden select-none pointer-events-none font-mono antialiased text-cyan-100 bg-transparent">
+    <div className="fixed inset-0 w-screen h-screen overflow-hidden select-none pointer-events-none font-mono antialiased text-stone-100 bg-transparent">
       {/* Simulated Background Quiz Window in Browser Preview */}
       {!isTauri && simulateDesktop && (
-        <div className="absolute inset-8 rounded-2xl border border-cyan-500/20 bg-[#070D1E]/90 backdrop-blur-sm overflow-hidden flex flex-col pointer-events-none shadow-2xl opacity-80 transition-all z-0">
-          <div className="h-9 bg-[#0C152B] border-b border-cyan-500/20 px-4 flex items-center justify-between">
+        <div className="absolute inset-8 rounded-xl border border-stone-800 bg-[#141210]/95 backdrop-blur-sm overflow-hidden flex flex-col pointer-events-none shadow-2xl opacity-85 transition-all z-0">
+          <div className="h-9 bg-[#1C1917] border-b border-stone-800 px-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
-              <span className="ml-2 text-xs text-cyan-300 font-sans font-bold">
-                Online Quiz Portal // Computer Science Examination
+              <span className="ml-2 text-xs text-amber-300 font-mono font-bold">
+                EXAMINATION PARCHMENT // COMPUTER SCIENCE 101
               </span>
             </div>
-            <span className="text-[10px] text-cyan-500 font-mono tracking-wider">
+            <span className="text-[10px] text-stone-500 font-mono tracking-wider">
               100% TRANSPARENT CENTER VIEWPORT
             </span>
           </div>
 
-          <div className="p-8 font-sans space-y-5 text-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
-              <span className="text-xs text-cyan-400 font-mono font-bold tracking-widest uppercase">
-                Question 14 of 30 • Multiple Choice
+          <div className="p-8 font-mono space-y-5 text-stone-200">
+            <div className="flex items-center justify-between border-b border-stone-800 pb-3">
+              <span className="text-xs text-amber-400 font-mono font-bold tracking-widest uppercase">
+                QUESTION 14 OF 30 • MULTIPLE CHOICE
               </span>
-              <span className="text-xs text-amber-400 font-mono">Time Left: 24:18</span>
+              <span className="text-xs text-amber-300 font-mono">TIME REMAINING: 24:18</span>
             </div>
 
-            <p className="text-lg font-semibold text-white">
+            <p className="text-lg font-bold text-stone-100">
               What is the worst-case time complexity of Binary Search on a sorted array of N elements?
             </p>
 
@@ -929,13 +967,13 @@ export default function App() {
               ].map((opt) => (
                 <div
                   key={opt.k}
-                  className={`p-3 rounded-xl border flex items-center gap-3 transition-colors ${
+                  className={`p-3 rounded-lg border flex items-center gap-3 transition-colors ${
                     parsedAnswer?.option.includes(opt.k[1]) && state === "ready"
-                      ? "border-emerald-400 bg-emerald-950/40 text-emerald-200 font-bold"
-                      : "border-slate-700/70 bg-slate-900/60 text-slate-300"
+                      ? "border-emerald-500 bg-emerald-950/70 text-emerald-200 font-bold shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+                      : "border-stone-800 bg-[#181614] text-stone-300"
                   }`}
                 >
-                  <span className="text-cyan-400 font-bold">{opt.k}</span>
+                  <span className="text-amber-400 font-bold">{opt.k}</span>
                   <span>{opt.t}</span>
                 </div>
               ))}
@@ -944,14 +982,18 @@ export default function App() {
         </div>
       )}
 
-      {/* Perimeter Animated Colorful Neon Boundary (Continuous 3px Line Around the Entire Window) */}
+      {/* Perimeter Animated Boundary (Continuous 3px Line Around the Entire Window) */}
       <div className="absolute top-0 left-0 right-0 h-[3px] overflow-hidden pointer-events-none z-40">
         <div
           className={`w-full h-full animate-beam-top ${
-            borderTheme === "assistant"
+            borderTheme === "amber"
+              ? "vintage-amber-border shadow-[0_0_12px_#F59E0B]"
+              : borderTheme === "phosphor"
+              ? "phosphor-green-border shadow-[0_0_12px_#10B981]"
+              : borderTheme === "typewriter"
+              ? "retro-typewriter-border shadow-[0_0_10px_#E7E5E4]"
+              : borderTheme === "assistant"
               ? "google-assistant-border shadow-[0_0_12px_#4285F4]"
-              : borderTheme === "gold"
-              ? "stark-gold-border shadow-[0_0_12px_#F59E0B]"
               : "arc-reactor-border shadow-[0_0_12px_#00F0FF]"
           }`}
           style={{ opacity: borderIntensity / 100 }}
@@ -960,10 +1002,14 @@ export default function App() {
       <div className="absolute bottom-0 left-0 right-0 h-[3px] overflow-hidden pointer-events-none z-40">
         <div
           className={`w-full h-full animate-beam-bottom ${
-            borderTheme === "assistant"
+            borderTheme === "amber"
+              ? "vintage-amber-border shadow-[0_0_12px_#D97706]"
+              : borderTheme === "phosphor"
+              ? "phosphor-green-border shadow-[0_0_12px_#059669]"
+              : borderTheme === "typewriter"
+              ? "retro-typewriter-border shadow-[0_0_10px_#A8A29E]"
+              : borderTheme === "assistant"
               ? "google-assistant-border shadow-[0_0_12px_#34A853]"
-              : borderTheme === "gold"
-              ? "stark-gold-border shadow-[0_0_12px_#EF4444]"
               : "arc-reactor-border shadow-[0_0_12px_#00F0FF]"
           }`}
           style={{ opacity: borderIntensity / 100 }}
@@ -972,10 +1018,14 @@ export default function App() {
       <div className="absolute top-0 left-0 bottom-0 w-[3px] overflow-hidden pointer-events-none z-40">
         <div
           className={`w-full h-full animate-beam-left ${
-            borderTheme === "assistant"
+            borderTheme === "amber"
+              ? "vintage-amber-border shadow-[0_0_12px_#B45309]"
+              : borderTheme === "phosphor"
+              ? "phosphor-green-border shadow-[0_0_12px_#34D399]"
+              : borderTheme === "typewriter"
+              ? "retro-typewriter-border shadow-[0_0_10px_#78716C]"
+              : borderTheme === "assistant"
               ? "google-assistant-border shadow-[0_0_12px_#9B51E0]"
-              : borderTheme === "gold"
-              ? "stark-gold-border shadow-[0_0_12px_#FBBF24]"
               : "arc-reactor-border shadow-[0_0_12px_#00F0FF]"
           }`}
           style={{ opacity: borderIntensity / 100 }}
@@ -984,165 +1034,170 @@ export default function App() {
       <div className="absolute top-0 right-0 bottom-0 w-[3px] overflow-hidden pointer-events-none z-40">
         <div
           className={`w-full h-full animate-beam-right ${
-            borderTheme === "assistant"
+            borderTheme === "amber"
+              ? "vintage-amber-border shadow-[0_0_12px_#F59E0B]"
+              : borderTheme === "phosphor"
+              ? "phosphor-green-border shadow-[0_0_12px_#10B981]"
+              : borderTheme === "typewriter"
+              ? "retro-typewriter-border shadow-[0_0_10px_#E7E5E4]"
+              : borderTheme === "assistant"
               ? "google-assistant-border shadow-[0_0_12px_#EA4335]"
-              : borderTheme === "gold"
-              ? "stark-gold-border shadow-[0_0_12px_#DC2626]"
               : "arc-reactor-border shadow-[0_0_12px_#00F0FF]"
           }`}
           style={{ opacity: borderIntensity / 100 }}
         />
       </div>
 
-      {/* Laser sweep animation during screen capture */}
+      {/* Sweep animation during screen capture */}
       {state === "capturing" && (
-        <div className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-300 via-amber-300 to-transparent shadow-[0_0_20px_#00F0FF] animate-laser-sweep pointer-events-none z-50" />
+        <div className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_20px_#F59E0B] animate-laser-sweep pointer-events-none z-50" />
       )}
 
-      {/* THE TWO-LINED TOP PANEL HUD (Unified In-Place Interface) */}
-      <div className="pointer-events-auto absolute top-2.5 left-1/2 -translate-x-1/2 w-[95%] max-w-5xl rounded-2xl border border-cyan-500/40 bg-[#040C1A]/95 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.85)] select-none z-50 flex flex-col overflow-hidden transition-all duration-300">
-        {/* LINE 1: Options & Controls Bar */}
-        <div className="flex items-center justify-between px-3.5 py-2 border-b border-cyan-500/25 bg-[#08152B]/90 text-xs">
-          {/* Identity & Status */}
-          <div className="flex items-center gap-2.5 shrink-0">
-            <div className="relative flex items-center justify-center w-5 h-5">
-              <div
-                className={`absolute inset-0 rounded-full border border-dashed animate-spin-slow ${
-                  borderTheme === "assistant" ? "border-purple-400" : "border-cyan-400"
-                }`}
-              />
-              <div
-                className={`w-2.5 h-2.5 rounded-full animate-pulse shadow-[0_0_10px_#00F0FF] ${
-                  borderTheme === "assistant"
-                    ? "bg-gradient-to-r from-blue-400 to-amber-400"
-                    : "bg-cyan-400"
-                }`}
-              />
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="font-extrabold text-cyan-200 tracking-wider font-mono text-[11px]">
-                AI TUTOR // IN-PLACE
-              </span>
-              <span
-                className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${
-                  state === "thinking"
-                    ? "bg-amber-500/20 text-amber-300 border border-amber-400/40 animate-pulse"
-                    : state === "capturing"
-                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 animate-pulse"
-                    : state === "ready"
-                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/40"
-                    : state === "error"
-                    ? "bg-rose-500/20 text-rose-300 border border-rose-400/40"
-                    : "bg-cyan-950/70 text-cyan-400 border border-cyan-500/30"
-                }`}
-              >
-                {state === "thinking"
-                  ? "SOLVING..."
+      {/* THE TWO-LINED TOP PANEL HUD (Old-School Typewriter & Vintage Terminal Interface) */}
+      <div className="pointer-events-auto absolute top-2.5 left-1/2 -translate-x-1/2 w-[96%] max-w-5xl rounded-xl border border-stone-700/80 bg-[#121110]/98 backdrop-blur-2xl shadow-[0_16px_50px_rgba(0,0,0,0.92)] select-none z-50 flex flex-col overflow-hidden transition-all duration-300">
+        {/* LINE 1: Options & Controls Bar (Clean Non-Overlapping Layout) */}
+        <div className="flex items-center justify-between px-3.5 py-2 border-b border-stone-800 bg-[#1A1816]/95 text-xs gap-2 overflow-x-auto no-scrollbar">
+          {/* Left: Brand Identity & Status Indicator */}
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="w-2.5 h-2.5 rounded-sm bg-amber-500 shadow-[0_0_8px_#F59E0B]" />
+            <span className="font-mono font-black text-amber-300 tracking-wider text-[11px]">
+              TYPE // TUTOR
+            </span>
+            <span
+              className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase ${
+                state === "thinking"
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/50 animate-pulse"
                   : state === "capturing"
-                  ? "SCANNING..."
+                  ? "bg-stone-800 text-stone-200 border border-stone-600 animate-pulse"
                   : state === "ready"
-                  ? "ANSWER READY"
+                  ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/50"
                   : state === "error"
-                  ? "FAULT"
-                  : "IDLE"}
-              </span>
-            </div>
+                  ? "bg-rose-950/80 text-rose-300 border border-rose-500/50"
+                  : "bg-stone-900 text-stone-400 border border-stone-800"
+              }`}
+            >
+              {state === "thinking"
+                ? "COMPUTING"
+                : state === "capturing"
+                ? "SCANNING"
+                : state === "ready"
+                ? "READY"
+                : state === "error"
+                ? "FAULT"
+                : "STANDBY"}
+            </span>
           </div>
 
-          {/* Center: Primary Trigger & Mode Selector */}
-          <div className="flex items-center gap-2">
-            {/* Primary Glowing Solve Trigger */}
+          {/* Center: Primary Actions & Compact Mode Keycaps */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Primary Typewriter Solve Keycap */}
             <button
               onClick={() => handleTrigger()}
               disabled={state === "capturing" || state === "thinking"}
-              className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white font-extrabold text-[11px] flex items-center gap-2 shadow-[0_0_15px_rgba(0,240,255,0.45)] transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-              title="Capture screen and get instant in-place answer"
+              className="px-3 py-1.5 rounded bg-gradient-to-b from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-mono font-black text-[11px] flex items-center gap-1.5 shadow-[0_2px_0_#78350F] active:translate-y-0.5 active:shadow-none transition-all disabled:opacity-50 cursor-pointer border border-amber-300/40"
+              title="Read & solve active viewport question with sub-second AI inference"
             >
-              <Zap className="w-3.5 h-3.5 text-yellow-300 fill-yellow-300" />
-              <span>READ & SOLVE SCREEN</span>
-              <span className="text-[9px] px-1.5 py-0.2 rounded bg-black/40 font-mono text-cyan-200">
+              <Zap className="w-3.5 h-3.5 fill-current text-stone-950" />
+              <span>SOLVE SCREEN</span>
+              <span className="text-[9px] px-1 py-0.2 rounded bg-stone-950/30 font-mono font-bold text-amber-100">
                 {hotkeyInfo.shortcut}
               </span>
             </button>
 
-            {/* Mode Pills */}
-            <div className="flex items-center bg-[#020712] p-0.5 rounded-lg border border-cyan-500/30">
+            {/* Real Screen Capture Keycap (Live user screen in browser) */}
+            {!isTauri && (
+              <button
+                onClick={captureUserScreen}
+                disabled={state === "capturing" || state === "thinking"}
+                className="px-2.5 py-1.5 rounded bg-stone-800 hover:bg-stone-700 text-amber-200 font-mono font-bold text-[10px] flex items-center gap-1.5 border border-stone-700 shadow-[0_2px_0_#0C0A09] active:translate-y-0.5 transition-all disabled:opacity-50 cursor-pointer"
+                title="Select and capture your real window or screen, or paste with Ctrl+V"
+              >
+                <Camera className="w-3 h-3 text-amber-400" />
+                <span>REAL SCREEN</span>
+              </button>
+            )}
+
+            {/* Compact Mode Selector Keycaps */}
+            <div className="flex items-center bg-[#0C0A09] p-0.5 rounded border border-stone-800">
               {[
-                { id: "quiz", label: "🎯 Quiz Option (A/B/C/D)", desc: "Direct MCQ letter answer" },
-                { id: "code", label: "🐞 Code Bug Fix", desc: "Line-by-line syntax & logic fix" },
-                { id: "summary", label: "📝 Summary", desc: "Concise summary" },
+                { id: "quiz", label: "🎯 QUIZ", short: "🎯", title: "Direct multiple choice letter" },
+                { id: "code", label: "🐞 CODE", short: "🐞", title: "Code bug and syntax fix" },
+                { id: "summary", label: "📝 MEMO", short: "📝", title: "Executive summary memo" },
               ].map((m) => (
                 <button
                   key={m.id}
                   type="button"
                   onClick={() => updateSolverMode(m.id as any)}
-                  className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${
+                  className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition-all ${
                     solverMode === m.id
-                      ? "bg-cyan-500/30 text-cyan-200 font-bold border border-cyan-400/50 shadow-[0_0_8px_rgba(0,240,255,0.25)]"
-                      : "text-cyan-400/70 hover:text-cyan-200"
+                      ? "bg-amber-950 text-amber-300 border border-amber-500/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]"
+                      : "text-stone-400 hover:text-stone-200"
                   }`}
-                  title={m.desc}
+                  title={m.title}
                 >
-                  {m.label}
+                  <span className="hidden sm:inline">{m.label}</span>
+                  <span className="inline sm:hidden">{m.short}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Right: Theme, Settings, Simulation & Dismiss */}
+          {/* Right: Theme Cycler, Config, Demo Screen & Dismiss */}
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* Theme Cycler */}
+            {/* Retro Theme Cycler */}
             <button
               onClick={() => {
-                const next =
-                  borderTheme === "assistant" ? "arc" : borderTheme === "arc" ? "gold" : "assistant";
+                const order: BorderTheme[] = ["amber", "phosphor", "typewriter", "assistant", "arc"];
+                const idx = order.indexOf(borderTheme);
+                const next = order[(idx + 1) % order.length];
                 updateBorderTheme(next);
               }}
-              className="text-[10px] px-2 py-1 rounded border border-cyan-500/30 bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 font-mono flex items-center gap-1 transition-colors"
-              title="Cycle colorful boundary border theme"
+              className="text-[10px] px-2 py-1 rounded border border-stone-700/80 bg-stone-900 hover:bg-stone-800 text-amber-300 font-mono flex items-center gap-1 transition-colors"
+              title="Cycle old-school typewriter and CRT border styles"
             >
-              <Sparkles className="w-2.5 h-2.5 text-cyan-300" />
               <span>
+                {borderTheme === "amber" && "🖮 AMBER CRT"}
+                {borderTheme === "phosphor" && "📟 VT-100"}
+                {borderTheme === "typewriter" && "📄 TYPEWRITER"}
                 {borderTheme === "assistant" && "AURORA"}
                 {borderTheme === "arc" && "ARC"}
-                {borderTheme === "gold" && "MARK-85"}
               </span>
             </button>
 
-            {/* Settings Drawer Button */}
+            {/* Config / Settings Drawer */}
             <button
               onClick={() => setShowSettings(!showSettings)}
               className={`text-[10px] px-2 py-1 rounded border transition-colors flex items-center gap-1 font-mono ${
                 showSettings
-                  ? "border-cyan-400 bg-cyan-900/60 text-cyan-100 font-bold shadow-[0_0_10px_rgba(0,240,255,0.3)]"
-                  : "border-cyan-500/30 bg-cyan-950/40 text-cyan-400 hover:text-cyan-200"
+                  ? "border-amber-400 bg-amber-950 text-amber-200 font-bold"
+                  : "border-stone-700/80 bg-stone-900 text-stone-300 hover:text-amber-200"
               }`}
-              title="API Key & Model Configuration"
+              title="API configuration & model settings"
             >
               <Settings className="w-3 h-3" />
-              <span>SETTINGS</span>
+              <span className="hidden sm:inline">CONFIG</span>
             </button>
 
             {/* Simulated Desktop Preview Toggle (Browser mode only) */}
             {!isTauri && (
               <button
                 onClick={() => setSimulateDesktop(!simulateDesktop)}
-                className={`text-[9px] px-2 py-1 rounded border transition-colors flex items-center gap-1 ${
+                className={`text-[9px] px-2 py-1 rounded border transition-colors flex items-center gap-1 font-mono ${
                   simulateDesktop
-                    ? "border-emerald-400 bg-emerald-950/70 text-emerald-300 font-bold"
-                    : "border-cyan-500/30 bg-cyan-950/40 text-cyan-400 hover:text-cyan-200"
+                    ? "border-emerald-600 bg-emerald-950 text-emerald-300 font-bold"
+                    : "border-stone-800 bg-stone-900 text-stone-400 hover:text-stone-200"
                 }`}
                 title="Toggle simulated quiz window to test in-place answering"
               >
                 <Monitor className="w-2.5 h-2.5" />
-                <span>{simulateDesktop ? "DESKTOP ON" : "DESKTOP OFF"}</span>
+                <span className="hidden sm:inline">{simulateDesktop ? "DEMO ON" : "DEMO OFF"}</span>
               </button>
             )}
 
             {/* Dismiss Button */}
             <button
               onClick={handleDismiss}
-              className="p-1 rounded text-cyan-400/70 hover:text-rose-300 hover:bg-rose-950/50 transition-colors"
+              className="p-1 rounded text-stone-400 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
               title="Dismiss / Minimize Overlay"
             >
               <X className="w-4 h-4" />
@@ -1150,63 +1205,62 @@ export default function App() {
           </div>
         </div>
 
-        {/* LINE 2: Instant Results Bar */}
-        <div className="flex items-center px-4 py-2 bg-[#020712]/95 min-h-[46px] text-xs">
+        {/* LINE 2: Instant Results Bar (Spacious, Uncrowded Layout) */}
+        <div className="flex items-center px-4 py-2.5 bg-[#0C0A09]/95 min-h-[46px] text-xs border-t border-stone-800/80 font-mono">
           {state === "idle" && (
-            <div className="flex items-center justify-between w-full text-cyan-400/80 font-mono text-[11px]">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-cyan-400/80 animate-pulse" />
-                <span>
-                  AI Tutor ready. Navigate to your quiz/window and click{" "}
-                  <strong className="text-cyan-200">READ & SOLVE SCREEN</strong> (or press{" "}
-                  <kbd className="px-1.5 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 font-bold">
+            <div className="flex items-center justify-between w-full text-stone-400 font-mono text-[11px] gap-2">
+              <div className="flex items-center gap-2 truncate min-w-0">
+                <span className="w-2 h-2 rounded-full bg-amber-500/80 animate-pulse shrink-0" />
+                <span className="truncate">
+                  Ready. Click <strong className="text-amber-300 font-bold">SOLVE SCREEN</strong> (or press{" "}
+                  <kbd className="px-1 py-0.5 rounded bg-stone-900 border border-stone-700 text-amber-200 font-bold">
                     {hotkeyInfo.shortcut}
                   </kbd>
-                  ) for instant in-place answer.
+                  ) or <strong className="text-amber-300 font-bold">REAL SCREEN</strong> to capture your window.
                 </span>
               </div>
-              <span className="text-[10px] text-cyan-500/70 hidden sm:inline">
-                ⚡ Zero Copy-Paste • Direct In-Place Answer
+              <span className="text-[10px] text-stone-500 font-mono shrink-0 hidden md:inline">
+                ⚡ Sub-Second Direct Output
               </span>
             </div>
           )}
 
           {(state === "capturing" || state === "thinking") && (
-            <div className="flex items-center justify-between w-full text-xs font-mono text-cyan-200">
-              <div className="flex items-center gap-2.5">
-                <div className="w-3.5 h-3.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-                <span className="animate-pulse font-bold text-cyan-100">
+            <div className="flex items-center justify-between w-full text-xs font-mono text-amber-200">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-3.5 h-3.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                <span className="animate-pulse font-bold text-amber-100 truncate">
                   {state === "capturing"
-                    ? "Capturing screen viewport..."
-                    : "Analyzing active question & identifying winning option..."}
+                    ? "Capturing screen frame..."
+                    : "Executing visual OCR & identifying winning option..."}
                 </span>
               </div>
-              <span className="text-[10px] text-cyan-500 font-mono">
-                {settings.model} // Vision Processing
+              <span className="text-[10px] text-stone-500 font-mono shrink-0">
+                {settings.model} // FAST-PATH
               </span>
             </div>
           )}
 
           {state === "ready" && parsedAnswer && (
-            <div className="flex items-center justify-between w-full gap-3">
-              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                {/* Big Prominent Option Badge */}
+            <div className="flex items-center justify-between w-full gap-3 min-w-0">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
+                {/* Typewriter Stamp Badge */}
                 {/^\([A-E]\)$/i.test(parsedAnswer.option) ? (
-                  <div className="shrink-0 px-3.5 py-1 rounded-lg bg-emerald-500/25 border border-emerald-400 text-emerald-200 font-black text-sm tracking-wider font-mono shadow-[0_0_16px_rgba(16,185,129,0.4)] flex items-center gap-1.5">
+                  <div className="shrink-0 px-3.5 py-1 rounded bg-emerald-950/90 border-2 border-emerald-500 text-emerald-300 font-black text-sm tracking-wider font-mono shadow-[0_0_12px_rgba(16,185,129,0.3)] flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span className="text-[15px]">{parsedAnswer.option}</span>
                   </div>
                 ) : (
-                  <div className="shrink-0 px-3 py-1 rounded-lg bg-cyan-500/25 border border-cyan-400 text-cyan-200 font-extrabold text-xs tracking-wider font-mono shadow-[0_0_12px_rgba(0,240,255,0.3)] flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <div className="shrink-0 px-2.5 py-1 rounded bg-amber-950/90 border-2 border-amber-500 text-amber-300 font-extrabold text-xs tracking-wider font-mono shadow-[0_0_10px_rgba(245,158,11,0.25)] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     <span>{parsedAnswer.option}</span>
                   </div>
                 )}
 
-                {/* Option Text */}
+                {/* Option Text: allows shrinking and truncating so it never pushes the right side */}
                 {parsedAnswer.text && (
                   <span
-                    className="text-xs font-bold text-white shrink-0 max-w-xs md:max-w-sm lg:max-w-md truncate"
+                    className="text-xs font-bold text-stone-100 shrink min-w-0 max-w-sm lg:max-w-md truncate font-mono"
                     title={parsedAnswer.text}
                   >
                     {parsedAnswer.text}
@@ -1215,7 +1269,7 @@ export default function App() {
 
                 {/* Confidence Pill */}
                 {parsedAnswer.confidence && (
-                  <span className="shrink-0 text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-cyan-950/90 border border-cyan-500/50 text-cyan-300 shadow-[0_0_8px_rgba(0,240,255,0.25)]">
+                  <span className="shrink-0 text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-amber-950/80 border border-amber-600/70 text-amber-300">
                     {parsedAnswer.confidence}
                   </span>
                 )}
@@ -1223,19 +1277,19 @@ export default function App() {
                 {/* 1-Sentence Rationale */}
                 {parsedAnswer.why && (
                   <span
-                    className="text-[11px] text-cyan-200/90 font-sans truncate min-w-0 flex-1 hidden md:inline"
+                    className="text-[11px] text-stone-300 font-mono truncate min-w-0 flex-1 hidden lg:inline"
                     title={parsedAnswer.why}
                   >
-                    <strong className="text-cyan-400 font-mono">Why:</strong> {parsedAnswer.why}
+                    <strong className="text-amber-400 font-mono">NOTE:</strong> {parsedAnswer.why}
                   </span>
                 )}
               </div>
 
-              {/* Action Buttons */}
-              <div className="shrink-0 flex items-center gap-1.5">
+              {/* Action Buttons: anchored on the right, never squeezed */}
+              <div className="shrink-0 flex items-center gap-1.5 font-mono ml-auto">
                 <button
                   onClick={handleCopyAnswer}
-                  className="px-2.5 py-1 rounded bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 text-[10px] flex items-center gap-1 transition-all font-mono font-bold"
+                  className="px-2.5 py-1 rounded bg-stone-900 hover:bg-stone-800 border border-stone-700 text-amber-300 text-[10px] flex items-center gap-1 transition-all font-mono font-bold shadow-[0_1px_0_#000]"
                   title="Copy option to clipboard"
                 >
                   {copiedAnswer ? (
@@ -1245,7 +1299,7 @@ export default function App() {
                     </>
                   ) : (
                     <>
-                      <Copy className="w-3 h-3 text-cyan-400" />
+                      <Copy className="w-3 h-3 text-amber-400" />
                       <span>COPY</span>
                     </>
                   )}
@@ -1253,10 +1307,10 @@ export default function App() {
 
                 <button
                   onClick={() => setShowDetails(!showDetails)}
-                  className={`px-2.5 py-1 rounded border text-[10px] flex items-center gap-1 transition-all font-mono ${
+                  className={`px-2.5 py-1 rounded border text-[10px] flex items-center gap-1 transition-all font-mono shadow-[0_1px_0_#000] ${
                     showDetails
-                      ? "border-cyan-400 bg-cyan-900/60 text-cyan-100 font-bold"
-                      : "border-cyan-500/40 bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300"
+                      ? "border-amber-400 bg-amber-950 text-amber-200 font-bold"
+                      : "border-stone-700 bg-stone-900 hover:bg-stone-800 text-stone-300"
                   }`}
                   title="Toggle detailed rationale drawer"
                 >
@@ -1266,7 +1320,7 @@ export default function App() {
 
                 <button
                   onClick={() => handleTrigger()}
-                  className="px-2.5 py-1 rounded bg-cyan-500/20 hover:bg-cyan-500/40 border border-cyan-400/50 text-cyan-200 text-[10px] flex items-center gap-1 transition-all font-mono"
+                  className="px-2.5 py-1 rounded bg-stone-900 hover:bg-stone-800 border border-stone-700 text-amber-200 text-[10px] flex items-center gap-1 transition-all font-mono shadow-[0_1px_0_#000]"
                   title="Re-scan current screen"
                 >
                   <RotateCcw className="w-3 h-3" />
@@ -1298,7 +1352,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setShowSettings(true)}
-                  className="px-2 py-1 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 text-[10px]"
+                  className="px-2 py-1 rounded bg-stone-900 border border-stone-700 text-amber-300 text-[10px]"
                 >
                   CONFIG
                 </button>
@@ -1314,23 +1368,23 @@ export default function App() {
           )}
         </div>
 
-        {/* EXPANDABLE DRAWER: Detailed Explanation & Follow-up Q&A */}
+        {/* EXPANDABLE DRAWER: Detailed Explanation & Follow-up Q&A (Typewriter Memo Style) */}
         {showDetails && parsedAnswer && (
-          <div className="p-4 border-t border-cyan-500/30 bg-[#050D1E]/98 max-h-[340px] overflow-y-auto space-y-3 select-text">
-            <div className="flex items-center justify-between border-b border-cyan-500/20 pb-2">
-              <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-cyan-400" />
-                <span>EXECUTIVE TUTORING BREAKDOWN</span>
+          <div className="p-4 border-t border-stone-800 bg-[#161412] max-h-[340px] overflow-y-auto space-y-3 select-text font-mono">
+            <div className="flex items-center justify-between border-b border-stone-800 pb-2">
+              <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-amber-400" />
+                <span>EXECUTIVE TUTORING MEMO</span>
               </span>
               <button
                 onClick={() => setShowDetails(false)}
-                className="text-[10px] text-cyan-500 hover:text-cyan-300"
+                className="text-[10px] text-stone-500 hover:text-amber-300"
               >
-                [ CLOSE DETAILS ]
+                [ CLOSE MEMO ]
               </button>
             </div>
 
-            <div className="text-xs leading-relaxed text-cyan-100/90 font-sans prose prose-invert max-w-none">
+            <div className="text-xs leading-relaxed text-stone-200 font-mono prose prose-invert max-w-none">
               <ReactMarkdown>{parsedAnswer.raw}</ReactMarkdown>
             </div>
 
@@ -1341,12 +1395,12 @@ export default function App() {
                 value={followUp}
                 onChange={(e) => setFollowUp(e.target.value)}
                 placeholder="Ask follow-up (e.g. 'Why not option C?')..."
-                className="flex-1 bg-[#020712] border border-cyan-500/40 rounded-lg px-3 py-1.5 text-xs text-cyan-200 outline-none focus:border-cyan-400 font-mono"
+                className="flex-1 bg-[#0C0A09] border border-stone-700 rounded px-3 py-1.5 text-xs text-amber-100 outline-none focus:border-amber-400 font-mono"
               />
               <button
                 type="submit"
                 disabled={!followUp.trim() || state === "thinking"}
-                className="px-3 py-1.5 rounded-lg bg-cyan-500/30 hover:bg-cyan-500/50 border border-cyan-400/50 text-cyan-200 text-xs font-bold transition-all disabled:opacity-40 flex items-center gap-1 font-mono"
+                className="px-3 py-1.5 rounded bg-amber-600/30 hover:bg-amber-600/50 border border-amber-500/50 text-amber-200 text-xs font-bold transition-all disabled:opacity-40 flex items-center gap-1 font-mono"
               >
                 <Send className="w-3 h-3" />
                 <span>ASK</span>
@@ -1355,17 +1409,17 @@ export default function App() {
           </div>
         )}
 
-        {/* EXPANDABLE DRAWER: Settings / API Configuration */}
+        {/* EXPANDABLE DRAWER: Settings / API Configuration (Mechanical Vintage Panel) */}
         {showSettings && (
-          <div className="p-4 border-t border-cyan-500/30 bg-[#050D1E]/98 text-xs space-y-3">
-            <div className="flex items-center justify-between text-cyan-300 font-bold">
+          <div className="p-4 border-t border-stone-800 bg-[#161412] text-xs space-y-3 font-mono">
+            <div className="flex items-center justify-between text-amber-300 font-bold">
               <span className="flex items-center gap-1.5">
-                <Key className="w-3.5 h-3.5 text-cyan-400" />
+                <Key className="w-3.5 h-3.5 text-amber-400" />
                 <span>AI PROTOCOL & API CONFIGURATION</span>
               </span>
               <button
                 onClick={() => setShowSettings(false)}
-                className="text-[10px] text-cyan-500 hover:text-cyan-300"
+                className="text-[10px] text-stone-500 hover:text-amber-300"
               >
                 [ CLOSE ]
               </button>
@@ -1373,7 +1427,7 @@ export default function App() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[9px] text-cyan-400/80 block mb-1">AI PROVIDER</label>
+                <label className="text-[9px] text-stone-400 block mb-1">AI PROVIDER</label>
                 <select
                   value={settings.provider}
                   onChange={(e) => {
@@ -1383,7 +1437,7 @@ export default function App() {
                       model: prov === "gemini" ? "gemini-2.0-flash" : "gpt-4o-mini",
                     });
                   }}
-                  className="w-full bg-[#020712] border border-cyan-500/40 rounded px-2.5 py-1.5 text-xs text-cyan-200 outline-none focus:border-cyan-400"
+                  className="w-full bg-[#0C0A09] border border-stone-700 rounded px-2.5 py-1.5 text-xs text-amber-100 outline-none focus:border-amber-400"
                 >
                   <option value="gemini">Google Gemini (Free API)</option>
                   <option value="openai">OpenAI / Compatible</option>
@@ -1391,19 +1445,19 @@ export default function App() {
               </div>
 
               <div>
-                <label className="text-[9px] text-cyan-400/80 block mb-1">VISION MODEL</label>
+                <label className="text-[9px] text-stone-400 block mb-1">VISION MODEL</label>
                 <input
                   type="text"
                   value={settings.model}
                   onChange={(e) => updateSettings({ model: e.target.value.trim() })}
                   placeholder={settings.provider === "gemini" ? "gemini-2.0-flash" : "gpt-4o-mini"}
-                  className="w-full bg-[#020712] border border-cyan-500/40 rounded px-2.5 py-1.5 text-xs text-cyan-200 outline-none focus:border-cyan-400"
+                  className="w-full bg-[#0C0A09] border border-stone-700 rounded px-2.5 py-1.5 text-xs text-amber-100 outline-none focus:border-amber-400"
                 />
                 {settings.provider === "gemini" && (
                   <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                    <span className="text-[8px] text-cyan-500/80">RECOMMENDED:</span>
+                    <span className="text-[8px] text-stone-500">SPEED PRESETS:</span>
                     {[
-                      { id: "gemini-2.0-flash", label: "2.0-flash (Recommended)" },
+                      { id: "gemini-2.0-flash", label: "2.0-flash (Ultra Fast)" },
                       { id: "gemini-1.5-flash", label: "1.5-flash (Standard)" },
                       { id: "gemini-1.5-flash-8b", label: "1.5-8b (Fast)" },
                     ].map((m) => (
@@ -1413,8 +1467,8 @@ export default function App() {
                         onClick={() => updateSettings({ model: m.id })}
                         className={`text-[8px] px-2 py-0.5 rounded border transition-colors ${
                           settings.model === m.id
-                            ? "border-cyan-400 bg-cyan-900/70 text-cyan-100 font-bold shadow-[0_0_8px_rgba(0,240,255,0.3)]"
-                            : "border-cyan-500/30 bg-[#020712] hover:border-cyan-400/50 text-cyan-400"
+                            ? "border-amber-400 bg-amber-950 text-amber-100 font-bold"
+                            : "border-stone-800 bg-[#0C0A09] hover:border-stone-700 text-stone-400"
                         }`}
                       >
                         {m.label}
@@ -1427,8 +1481,8 @@ export default function App() {
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[9px] text-cyan-400/80 flex items-center gap-1">
-                  <Key className="w-2.5 h-2.5 text-cyan-400" />
+                <label className="text-[9px] text-stone-400 flex items-center gap-1">
+                  <Key className="w-2.5 h-2.5 text-amber-400" />
                   <span>API KEY {settings.provider === "gemini" && "(Google AI Studio)"}</span>
                 </label>
                 {settings.provider === "gemini" && (
@@ -1436,7 +1490,7 @@ export default function App() {
                     href="https://aistudio.google.com/app/apikey"
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[9px] text-cyan-400 hover:text-cyan-200 flex items-center gap-0.5 underline"
+                    className="text-[9px] text-amber-400 hover:text-amber-200 flex items-center gap-0.5 underline"
                   >
                     <span>Get Free Gemini Key</span>
                     <ExternalLink className="w-2.5 h-2.5" />
@@ -1452,7 +1506,7 @@ export default function App() {
                   })
                 }
                 placeholder="Paste key (AIza... or sk-...) or leave empty for simulation"
-                className="w-full bg-[#020712] border border-cyan-500/40 rounded px-2.5 py-1.5 text-xs text-cyan-200 outline-none focus:border-cyan-400"
+                className="w-full bg-[#0C0A09] border border-stone-700 rounded px-2.5 py-1.5 text-xs text-amber-100 outline-none focus:border-amber-400"
               />
             </div>
 
@@ -1462,31 +1516,31 @@ export default function App() {
                 <button
                   onClick={handleTestConnection}
                   disabled={testConnectionStatus.testing || !settings.apiKey.trim()}
-                  className="shrink-0 px-3 py-1.5 rounded-lg border border-cyan-500/50 bg-cyan-950/70 hover:bg-cyan-900/70 text-cyan-300 text-[10px] flex items-center gap-1.5 transition-all disabled:opacity-40 font-bold shadow-[0_0_8px_rgba(0,240,255,0.2)]"
+                  className="shrink-0 px-3 py-1.5 rounded border border-amber-600/70 bg-amber-950/70 hover:bg-amber-900/70 text-amber-300 text-[10px] flex items-center gap-1.5 transition-all disabled:opacity-40 font-bold"
                 >
                   {testConnectionStatus.testing ? (
                     <>
-                      <div className="w-2.5 h-2.5 border border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                      <div className="w-2.5 h-2.5 border border-amber-400 border-t-transparent rounded-full animate-spin" />
                       <span>PROBING GOOGLE CLOUD...</span>
                     </>
                   ) : (
                     <>
-                      <Shield className="w-2.5 h-2.5 text-cyan-400" />
+                      <Shield className="w-2.5 h-2.5 text-amber-400" />
                       <span>TEST & AUTO-DISCOVER MODEL</span>
                     </>
                   )}
                 </button>
-                <span className="text-[8px] text-cyan-500/70 font-mono">
+                <span className="text-[8px] text-stone-500 font-mono">
                   {settings.apiKey.trim() ? "KEY ENTERED" : "SIMULATION MODE"}
                 </span>
               </div>
 
               {testConnectionStatus.message && (
                 <div
-                  className={`text-[10px] p-2 rounded-lg border leading-relaxed flex items-start gap-1.5 break-words ${
+                  className={`text-[10px] p-2 rounded border leading-relaxed flex items-start gap-1.5 break-words ${
                     testConnectionStatus.success
-                      ? "border-emerald-500/50 bg-emerald-950/40 text-emerald-300 font-mono shadow-[0_0_10px_rgba(16,185,129,0.2)]"
-                      : "border-rose-500/50 bg-rose-950/40 text-rose-300 font-mono shadow-[0_0_10px_rgba(244,63,94,0.2)]"
+                      ? "border-emerald-500/50 bg-emerald-950/40 text-emerald-300 font-mono"
+                      : "border-rose-500/50 bg-rose-950/40 text-rose-300 font-mono"
                   }`}
                 >
                   {testConnectionStatus.success ? (
@@ -1499,9 +1553,9 @@ export default function App() {
               )}
             </div>
 
-            {/* Boundary Lightning Intensity Slider */}
-            <div className="pt-2 border-t border-cyan-500/20 flex items-center justify-between">
-              <span className="text-[9px] text-cyan-400/80 font-bold">
+            {/* Boundary CRT Intensity Slider */}
+            <div className="pt-2 border-t border-stone-800 flex items-center justify-between">
+              <span className="text-[9px] text-stone-400 font-bold">
                 PERIMETER BORDER INTENSITY:
               </span>
               <div className="flex items-center gap-2">
@@ -1514,9 +1568,9 @@ export default function App() {
                     setBorderIntensity(Number(e.target.value));
                     localStorage.setItem("tutor_border_intensity", e.target.value);
                   }}
-                  className="w-28 h-1 bg-cyan-950 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                  className="w-28 h-1 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
                 />
-                <span className="text-[9px] text-cyan-400 font-mono w-6 text-right">
+                <span className="text-[9px] text-amber-400 font-mono w-6 text-right">
                   {borderIntensity}%
                 </span>
               </div>

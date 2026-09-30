@@ -39,6 +39,25 @@
     background-size: 300% 300%;
     animation: gradientFlow 3.5s linear infinite;
   }
+
+  /* Old-School Vintage Typewriter & CRT Phosphor Borders */
+  .vintage-amber-border {
+    background: linear-gradient(90deg, #F59E0B, #D97706, #B45309, #FCD34D, #F59E0B);
+    background-size: 300% 300%;
+    animation: gradientFlow 3.5s linear infinite;
+  }
+
+  .phosphor-green-border {
+    background: linear-gradient(90deg, #10B981, #059669, #34D399, #047857, #10B981);
+    background-size: 300% 300%;
+    animation: gradientFlow 3.5s linear infinite;
+  }
+
+  .retro-typewriter-border {
+    background: linear-gradient(90deg, #E7E5E4, #A8A29E, #78716C, #D6D3D1, #E7E5E4);
+    background-size: 300% 300%;
+    animation: gradientFlow 4s linear infinite;
+  }
 }
 
 @property --gradient-angle {
@@ -194,17 +213,18 @@
   animation: laserSweep 1.8s ease-in-out infinite;
 }
 
-/* Custom sleek futuristic scrollbar */
+/* Custom vintage typewriter scrollbar */
 ::-webkit-scrollbar {
   width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(5, 11, 20, 0.6);
+  background: rgba(28, 25, 23, 0.7);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 240, 255, 0.3);
-  border-radius: 9999px;
+  background: rgba(217, 119, 6, 0.4);
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 240, 255, 0.6);
+  background: rgba(245, 158, 11, 0.7);
 }
