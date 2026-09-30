@@ -66,74 +66,171 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
   return {} as T;
 }
 
-// Parse AI output into structured instant quiz answer format
+// Clean surrounding quotes, backticks, asterisks, and trailing punctuation
+function cleanValue(str: string): string {
+  if (!str) return "";
+  return str
+    .trim()
+    .replace(/^["'`*#\s]+|["'`*#\s]+$/g, "")
+    .replace(/[."';,]+$/, "")
+    .trim();
+}
+
+// Generate uniform prompt for both Tauri native capture and browser preview
+function getSolverPrompt(mode: "quiz" | "code" | "summary", customPrompt?: string): string {
+  let basePrompt = "";
+  if (mode === "quiz") {
+    basePrompt = `You are an ultra-fast, high-precision AI Exam & Quiz Solver.
+Examine this screen capture. Identify the active question and multiple-choice options (A, B, C, D, etc.).
+Determine the single correct winning option with absolute certainty.
+
+YOU MUST STRICTLY RESPOND IN EXACTLY THIS 4-LINE FORMAT (DO NOT ADD EXTRA TEXT, MARKDOWN QUOTES, OR COMMENTARY):
+OPTION: (A)
+TEXT: [Winning option text without repeating letter or quotes]
+CONFIDENCE: 98%
+WHY: [1 concise sentence explaining why this option is correct]
+
+CRITICAL RULES:
+1. "OPTION:" MUST strictly be the option letter in parentheses, e.g. (A), (B), (C), (D), or (E). Never write "DIRECT ANSWER" or full sentences in OPTION.
+2. "TEXT:" must be the option text without repeating the letter or surrounding quotes.
+3. "CONFIDENCE:" must strictly be a percentage like 95% or 99% without commentary or parentheses.
+4. "WHY:" must be 1 clear, punchy sentence explaining the rationale.`;
+  } else if (mode === "code") {
+    basePrompt = `You are an instant AI Code Debugger. Inspect the visible code for errors or bugs.
+YOU MUST RESPOND IN THIS EXACT 4-LINE FORMAT:
+OPTION: [BUG LOCATION / LINE]
+TEXT: [Exact code fix]
+CONFIDENCE: 95%
+WHY: [1 concise sentence explaining the cause and fix]`;
+  } else {
+    basePrompt = `You are a concise AI Tutor. Summarize what is on screen.
+YOU MUST RESPOND IN THIS EXACT 4-LINE FORMAT:
+OPTION: SUMMARY
+TEXT: [Core takeaway]
+CONFIDENCE: 95%
+WHY: [Practical application or core concept]`;
+  }
+
+  return customPrompt ? `${basePrompt}\nUser Follow-up: ${customPrompt}` : basePrompt;
+}
+
+// Parse AI output into structured instant quiz answer format with robust heuristics
 function parseQuizResponse(fullText: string): ParsedQuizAnswer {
   if (!fullText) {
     return { option: "", text: "", why: "", raw: "" };
   }
 
-  let option = "";
-  let text = "";
+  // Extract raw labeled lines if present
+  const optionMatch = fullText.match(/(?:^|\n)\s*OPTION:\s*([^\n\r]+)/i);
+  const textMatch = fullText.match(/(?:^|\n)\s*TEXT:\s*([^\n\r]+)/i);
+  const confMatch = fullText.match(/(?:^|\n)\s*CONFIDENCE:\s*([^\n\r]+)/i);
+  const whyMatch = fullText.match(/(?:^|\n)\s*WHY:\s*([^\n\r]+)/i);
+
+  let rawOption = cleanValue(optionMatch ? optionMatch[1] : "");
+  let rawText = cleanValue(textMatch ? textMatch[1] : "");
+  let rawConf = cleanValue(confMatch ? confMatch[1] : "");
+  let rawWhy = cleanValue(whyMatch ? whyMatch[1] : "");
+
+  // 1. Extract clean percentage for confidence (strictly \d{1,3}%)
   let confidence = "";
-  let why = "";
-
-  const optionMatch = fullText.match(/OPTION:\s*([^\n\r]+)/i);
-  if (optionMatch) {
-    option = optionMatch[1].trim();
+  const confPercent =
+    rawConf.match(/(\d{1,3}%)/) ||
+    fullText.match(/CONFIDENCE:.*?(\d{1,3}%)/i) ||
+    fullText.match(/(\d{2,3}%)/);
+  if (confPercent) {
+    confidence = confPercent[1];
+  } else if (rawConf) {
+    const digits = rawConf.match(/\b\d{2,3}\b/);
+    if (digits) confidence = `${digits[0]}%`;
   }
 
-  const textMatch = fullText.match(/TEXT:\s*([^\n\r]+)/i);
-  if (textMatch) {
-    text = textMatch[1].trim();
+  // 2. Extract Option Letter ((A), (B), (C), (D), (E))
+  let option = "";
+  let detectedLetter: string | null = null;
+
+  // Check if rawOption is a letter or contains (A)/(B)/(C)/(D)/(E)
+  const optionLetterMatch =
+    rawOption.match(/\(([A-E])\)/i) ||
+    rawOption.match(/^\(?([A-E])\)?$/i) ||
+    rawOption.match(/\b([A-E])\b/i);
+
+  if (optionLetterMatch) {
+    detectedLetter = optionLetterMatch[1].toUpperCase();
   }
 
-  const confMatch = fullText.match(/CONFIDENCE:\s*([^\n\r]+)/i);
-  if (confMatch) {
-    confidence = confMatch[1].trim();
-  }
+  // If rawOption was "DIRECT ANSWER" or something generic, check rawText or fullText
+  if (!detectedLetter || rawOption.toUpperCase().includes("DIRECT ANSWER")) {
+    const textLetterMatch =
+      rawText.match(/\(([A-E])\)/i) ||
+      rawText.match(/^\(?([A-E])\)?[\.\:\-\)\s]/i) ||
+      fullText.match(/\(([A-E])\)/i) ||
+      fullText.match(/\b(?:option|choice|answer)\s*(?:is\s*)?[:\*\s]*\b([A-E])\b/i);
 
-  const whyMatch = fullText.match(/WHY:\s*([^\n\r]+)/i);
-  if (whyMatch) {
-    why = whyMatch[1].trim();
-  }
-
-  // Fallback heuristics if the LLM answered conversationally without explicit labels
-  if (!option) {
-    const letterMatch = fullText.match(/\b([A-D])[\).\:\s]/) || fullText.match(/\(([A-D])\)/);
-    if (letterMatch) {
-      option = `(${letterMatch[1].toUpperCase()})`;
-    } else {
-      option = "ANSWER";
+    if (textLetterMatch) {
+      detectedLetter = textLetterMatch[1].toUpperCase();
     }
   }
 
+  if (detectedLetter) {
+    option = `(${detectedLetter})`;
+    // Strip leading option letter from text so it doesn't repeat next to the badge
+    const prefixRegex = new RegExp(`^\\(?${detectedLetter}\\)?[\\.\\:\\-\\)\\s]*`, "i");
+    rawText = cleanValue(rawText.replace(prefixRegex, ""));
+  } else if (rawOption && !rawOption.toUpperCase().includes("DIRECT ANSWER")) {
+    option = rawOption;
+  } else {
+    // Check fallback for any letter in the full text
+    const genericLetterMatch =
+      fullText.match(/\(([A-E])\)/i) ||
+      fullText.match(/\b([A-E])[\.\)]\s/i);
+    if (genericLetterMatch) {
+      option = `(${genericLetterMatch[1].toUpperCase()})`;
+    } else {
+      option = "DIRECT ANSWER";
+    }
+  }
+
+  // 3. Clean Text
+  let text = cleanValue(rawText);
   if (!text) {
     const cleanLines = fullText
       .split("\n")
-      .map((l) => l.trim())
+      .map((l) => cleanValue(l))
       .filter(
         (l) =>
           l.length > 0 &&
-          !l.startsWith("OPTION:") &&
-          !l.startsWith("CONFIDENCE:") &&
-          !l.startsWith("WHY:")
+          !l.toUpperCase().startsWith("OPTION:") &&
+          !l.toUpperCase().startsWith("CONFIDENCE:") &&
+          !l.toUpperCase().startsWith("WHY:")
       );
     text = cleanLines[0] || "Correct option identified.";
   }
 
-  if (!why) {
+  // Further strip any remaining leading quotes or duplicated (A)/(B) from text
+  text = text.replace(/^["'`\s]+|["'`\s]+$/g, "");
+  if (detectedLetter) {
+    const prefixRegex = new RegExp(`^\\(?${detectedLetter}\\)?[\\.\\:\\-\\)\\s]*`, "i");
+    text = text.replace(prefixRegex, "").trim();
+  }
+
+  // 4. Clean Why
+  let why = cleanValue(rawWhy);
+  if (why) {
+    why = why.replace(/^(?:why|reason|explanation|because)[\s\:\-]+/i, "").trim();
+  } else {
     const cleanLines = fullText
       .split("\n")
-      .map((l) => l.trim())
+      .map((l) => cleanValue(l))
       .filter(
         (l) =>
           l.length > 0 &&
-          !l.startsWith("OPTION:") &&
-          !l.startsWith("TEXT:") &&
-          !l.startsWith("CONFIDENCE:")
+          !l.toUpperCase().startsWith("OPTION:") &&
+          !l.toUpperCase().startsWith("TEXT:") &&
+          !l.toUpperCase().startsWith("CONFIDENCE:") &&
+          !l.toUpperCase().startsWith("WHY:")
       );
     if (cleanLines.length > 1) {
-      why = cleanLines.slice(1).join(" ").slice(0, 160);
+      why = cleanLines.slice(1).join(" ").slice(0, 200);
     }
   }
 
@@ -666,39 +763,7 @@ export default function App() {
 
       const cleanB64 = effectiveImage.replace(/^data:image\/[a-z]+;base64,/, "");
 
-      let systemPrompt = "";
-      if (solverMode === "quiz") {
-        systemPrompt = `You are an instant AI Exam & Quiz Solver.
-Look at this screen capture. Find the active question and multiple-choice options (A, B, C, D, etc.).
-Determine the correct option with high accuracy.
-YOU MUST RESPOND IN THIS EXACT 4-LINE FORMAT:
-OPTION: [Winning option letter, e.g. (A), (B), (C), or (D) or Direct Answer]
-TEXT: [Exact brief text of the winning option]
-CONFIDENCE: [e.g. 98%]
-WHY: [1 concise sentence explaining why this option is correct]
-
-If the screen is not a quiz, provide:
-OPTION: DIRECT ANSWER
-TEXT: [Direct solution to the question on screen]
-CONFIDENCE: 95%
-WHY: [1 concise sentence rationale]`;
-      } else if (solverMode === "code") {
-        systemPrompt = `You are an instant AI Code Debugger. Inspect the code on screen.
-YOU MUST RESPOND IN THIS EXACT 4-LINE FORMAT:
-OPTION: [BUG LOCATION / LINE]
-TEXT: [Exact code fix]
-CONFIDENCE: [e.g. 95%]
-WHY: [1 concise sentence explaining the cause and fix]`;
-      } else {
-        systemPrompt = `You are a concise AI Tutor. Summarize what is on screen.
-YOU MUST RESPOND IN THIS EXACT 4-LINE FORMAT:
-OPTION: SUMMARY
-TEXT: [Core takeaway]
-CONFIDENCE: [e.g. 95%]
-WHY: [Practical application or core concept]`;
-      }
-
-      const finalPrompt = customPrompt ? `${systemPrompt}\nUser Follow-up: ${customPrompt}` : systemPrompt;
+      const finalPrompt = getSolverPrompt(solverMode, customPrompt);
 
       if (settings.provider === "gemini") {
         const parts: any[] = [{ text: finalPrompt }];
@@ -768,13 +833,7 @@ WHY: [Practical application or core concept]`;
     setErrorMessage(null);
     setCurrentStreamingText("");
 
-    const promptText =
-      customPrompt ||
-      (solverMode === "quiz"
-        ? "Solve active quiz question on screen and output winning option letter."
-        : solverMode === "code"
-        ? "Inspect visible code for bugs and output fix."
-        : "Summarize screen contents concisely.");
+    const promptText = getSolverPrompt(solverMode, customPrompt);
 
     setMessages([{ role: "user", content: promptText }]);
 
@@ -1130,31 +1189,44 @@ WHY: [Practical application or core concept]`;
 
           {state === "ready" && parsedAnswer && (
             <div className="flex items-center justify-between w-full gap-3">
-              <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
                 {/* Big Prominent Option Badge */}
-                <div className="shrink-0 px-3 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-300 font-extrabold text-sm shadow-[0_0_14px_rgba(16,185,129,0.35)] flex items-center gap-1.5 font-mono">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>{parsedAnswer.option}</span>
-                </div>
+                {/^\([A-E]\)$/i.test(parsedAnswer.option) ? (
+                  <div className="shrink-0 px-3.5 py-1 rounded-lg bg-emerald-500/25 border border-emerald-400 text-emerald-200 font-black text-sm tracking-wider font-mono shadow-[0_0_16px_rgba(16,185,129,0.4)] flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="text-[15px]">{parsedAnswer.option}</span>
+                  </div>
+                ) : (
+                  <div className="shrink-0 px-3 py-1 rounded-lg bg-cyan-500/25 border border-cyan-400 text-cyan-200 font-extrabold text-xs tracking-wider font-mono shadow-[0_0_12px_rgba(0,240,255,0.3)] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                    <span>{parsedAnswer.option}</span>
+                  </div>
+                )}
 
                 {/* Option Text */}
                 {parsedAnswer.text && (
-                  <span className="text-xs font-bold text-white truncate max-w-sm">
+                  <span
+                    className="text-xs font-bold text-white shrink-0 max-w-xs md:max-w-sm lg:max-w-md truncate"
+                    title={parsedAnswer.text}
+                  >
                     {parsedAnswer.text}
                   </span>
                 )}
 
                 {/* Confidence Pill */}
                 {parsedAnswer.confidence && (
-                  <span className="shrink-0 text-[9px] px-2 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 font-mono">
+                  <span className="shrink-0 text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-cyan-950/90 border border-cyan-500/50 text-cyan-300 shadow-[0_0_8px_rgba(0,240,255,0.25)]">
                     {parsedAnswer.confidence}
                   </span>
                 )}
 
                 {/* 1-Sentence Rationale */}
                 {parsedAnswer.why && (
-                  <span className="text-[11px] text-cyan-200/90 truncate max-w-md hidden lg:inline">
-                    <strong className="text-cyan-400">Why:</strong> {parsedAnswer.why}
+                  <span
+                    className="text-[11px] text-cyan-200/90 font-sans truncate min-w-0 flex-1 hidden md:inline"
+                    title={parsedAnswer.why}
+                  >
+                    <strong className="text-cyan-400 font-mono">Why:</strong> {parsedAnswer.why}
                   </span>
                 )}
               </div>

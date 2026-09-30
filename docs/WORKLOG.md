@@ -162,5 +162,24 @@ One small note per change, newest last. If a change touched stack, capture, hotk
 5. **Interactive Simulated Quiz Window:**
    - In browser mode, toggling `[ 🖥️ DESKTOP ON/OFF ]` renders a full-screen multiple-choice quiz question (Binary Search complexity) behind the top panel, allowing instant testing of in-place option detection.
 
+---
 
+## Milestone 6: Quiz Option Parser Sanitization & Line 2 HUD Polish (2026-10-01)
 
+### Changes & Problem Solved
+1. **Root Cause Analysis from User Screen**:
+   - The user screenshot revealed Gemini occasionally outputted `OPTION: DIRECT ANSWER` while placing `"(D) O(1..."` into the `TEXT:` field, accompanied by conversational confidence commentary `95% (Assuming this is the answer to an array access question)`.
+   - The previous parser accepted `DIRECT ANSWER...".` literally, leaving the option letter unextracted and causing awkward text truncation on Line 2.
+2. **Robust Multi-Strategy Parser (`parseQuizResponse`)**:
+   - **Punctuation & Quote Sanitization (`cleanValue`)**: Automatically strips leading/trailing quotation marks (`"`, `'`), backticks, asterisks, and trailing punctuation (`.`, `",`).
+   - **Option Letter Extraction**: Prioritizes `\(([A-E])\)`, word-bounded `\b([A-E])\b`, and scans both `OPTION:` and `TEXT:` fields. When detected (e.g. `(D)` from `"(D) O(1..."`), the letter is cleanly elevated into the prominent green badge and stripped from the text to eliminate redundancy.
+   - **Pure Percentage Confidence**: Uses strict regex `(\d{1,3}%)` to isolate clean percentages (e.g. `95%`), discarding extraneous parenthetical reasoning.
+   - **Clean Rationale Formatting**: Strips redundant `Why:` / `Reason:` prefixes and expands flexibly into available horizontal space (`flex-1`) with tooltip support (`title`), avoiding mid-word truncation.
+3. **Synchronized System Prompt (`getSolverPrompt`)**:
+   - Unified system prompt generation between Browser preview mode (`runBrowserVisionAI`) and Tauri desktop hotkey trigger (`handleTrigger`).
+   - Explicitly instructs Gemini to output strict 4-line format with parentheses option letters `(A)/(B)/(C)/(D)/(E)` and forbids verbose filler words in the `OPTION` and `CONFIDENCE` fields.
+4. **Line 2 HUD Styling Enhancements**:
+   - Distinct, glowing Emerald badge for multiple-choice letters: `[ (✓) (D) ]` (15px font, bold mono, vibrant shadow).
+   - Generous text expansion (`max-w-md`) with hover tooltip.
+   - Percentage confidence pill with glowing cyan border.
+   - Smooth `flex-1` layout ensuring full rationale visibility.
