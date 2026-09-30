@@ -72,6 +72,16 @@ A person reading something on screen — a PDF, a web article, slides, code — 
 - Blank or blocked captures do not produce garbage AI answers.
 - The card opens and closes cleanly.
 
+## Current development milestone
+
+The repo currently has a **runnable-target project layout**: a Tauri v2 app crate in `src-tauri/`, a React + TypeScript + Tailwind frontend in `frontend/`, and root scripts for frontend dev and Tauri dev/build. What is not done yet:
+
+- Rust toolchain not available in this environment, so `npm run tauri dev` has not been verified here.
+- The Tauri app is not yet wired with hotkey, capture, or AI commands.
+- The frontend card shell exists but is not yet connected to the backend.
+
+Next milestone: launch the Tauri app so the card shell appears inside Tauri on a machine with the Rust toolchain available.
+
 ## Open questions
 
 - Exact cloud vision model choice for cheapest-viable tier (env-configured, swappable).
