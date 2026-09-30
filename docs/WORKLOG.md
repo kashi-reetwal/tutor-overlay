@@ -111,3 +111,20 @@ One small note per change, newest last. If a change touched stack, capture, hotk
   - Added automatic fallback to `gemini-1.5-flash` in `runBrowserVisionAI`, `handleTestConnection`, and `handleFollowUpSubmit` if Google returns 404.
   - Updated presets in Settings to verified Free Tier models: `[ 1.5-flash (Standard) ]`, `[ 2.0-flash (New) ]`, `[ 1.5-8b (Fast) ]`.
   - Added 1-click `[ ⚡ SWITCH TO GEMINI-1.5-FLASH & RETRY ]` recovery button directly inside HUD error alerts.
+
+## [2026-10-01] - Milestone 6: Screen Boundary Lightning & Transparent Center HUD
+
+### Added & Enhanced
+- **Google Assistant / Gemini-Style Screen Boundary Lightning:**
+  - Fullscreen perimeter multi-layer neon lightning glow (`screen-lightning-idle`, `screen-lightning-capturing`, `screen-lightning-thinking`, `screen-lightning-ready`, `screen-lightning-error`).
+  - 4 traveling perimeter animated lightning beams (top, right, bottom, left) with continuous neon gradient flow (`animate-beam-top`, `animate-beam-bottom`, etc.).
+  - Full-width laser sweep scanline animation across the screen during screen capture.
+- **100% Transparent Center Viewport:**
+  - Center of the display is completely see-through, letting the user's active background windows (IDE, browser, documentation) show through clearly.
+  - Transparent overlay with `pointer-events-none` on backdrop and `pointer-events-auto` on the draggable JARVIS dialogue card.
+- **Tactical Perimeter HUD Elements:**
+  - 4 large corner HUD targeting reticles with coordinate telemetry badges (`SEC.01`, `OPTIC.LOCK`, `RECON // ACTIVE`, `TELEMETRY.SYNC`).
+  - Top edge status beacon capsule with live Arc Core pulse, shortcut indicator (`Alt+T`), and desktop simulator toggle.
+- **Tauri Native Overlay Configuration:**
+  - Updated `tauri/tauri.conf.json` to `fullscreen: true` with `transparent: true` and `decorations: false` so boundary lightning hugs the physical monitor edges.
+

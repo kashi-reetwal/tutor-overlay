@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   XCircle,
   FileCode,
+  Monitor,
 } from "lucide-react";
 
 type CardState = "idle" | "capturing" | "thinking" | "ready" | "error";
@@ -147,6 +148,7 @@ export default function App() {
   });
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [simulateDesktop, setSimulateDesktop] = useState(false);
   const [testConnectionStatus, setTestConnectionStatus] = useState<{
     testing: boolean;
     success?: boolean;
@@ -796,6 +798,115 @@ User Query: ${prompt}`,
 
   return (
     <div className="fixed inset-0 w-screen h-screen overflow-hidden select-none pointer-events-none font-mono antialiased text-cyan-100 bg-transparent">
+      {/* Optional Simulated Desktop Background in Browser Preview */}
+      {!isTauri && simulateDesktop && (
+        <div className="absolute inset-6 rounded-xl border border-cyan-500/20 bg-[#090F1C]/85 backdrop-blur-sm overflow-hidden flex flex-col pointer-events-none shadow-2xl opacity-75 transition-all">
+          <div className="h-8 bg-[#0C152B] border-b border-cyan-500/20 px-3.5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500/70" />
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500/70" />
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/70" />
+              <span className="ml-2 text-[10px] text-cyan-300 font-mono">VS Code - algorithm.ts (Active Background Window)</span>
+            </div>
+            <span className="text-[9px] text-cyan-600 font-mono tracking-wider">CENTER VIEWPORT VISIBLE (100% TRANSPARENT)</span>
+          </div>
+          <div className="p-8 font-mono text-xs text-slate-300 space-y-2 opacity-90 select-none">
+            <p className="text-cyan-400/90">// Background Window is completely visible through the center of the screen</p>
+            <p className="text-purple-400">function <span className="text-yellow-300">binarySearch</span>(arr: number[], target: number): number &#123;</p>
+            <p className="pl-6 text-cyan-200">let low = 0, high = arr.length - 1;</p>
+            <p className="pl-6 text-purple-400">while (low &lt;= high) &#123;</p>
+            <p className="pl-10 text-cyan-200">const mid = Math.floor((low + high) / 2);</p>
+            <p className="pl-10 text-purple-400">if (arr[mid] === target) return mid;</p>
+            <p className="pl-10 text-purple-400">else if (arr[mid] &lt; target) low = mid + 1;</p>
+            <p className="pl-10 text-purple-400">else high = mid - 1;</p>
+            <p className="pl-6 text-purple-400">&#125;</p>
+            <p className="pl-6 text-rose-400">return -1;</p>
+            <p className="text-purple-400">&#125;</p>
+          </div>
+        </div>
+      )}
+
+      {/* Google Assistant / Gemini Screen Boundary Lightning Glow */}
+      <div
+        className={`absolute inset-0 pointer-events-none transition-all duration-700 ${
+          state === "capturing"
+            ? "screen-lightning-capturing"
+            : state === "thinking"
+            ? "screen-lightning-thinking"
+            : state === "error"
+            ? "screen-lightning-error"
+            : state === "ready"
+            ? "screen-lightning-ready"
+            : "screen-lightning-idle"
+        }`}
+      />
+
+      {/* Perimeter Animated Neon Lightning Beams */}
+      <div className="absolute top-0 left-0 right-0 h-[3px] overflow-hidden pointer-events-none">
+        <div className="w-full h-full bg-gradient-to-r from-transparent via-[#00F0FF] via-purple-500 to-transparent animate-beam-top shadow-[0_0_15px_#00F0FF]" />
+      </div>
+      <div className="absolute bottom-0 left-0 right-0 h-[3px] overflow-hidden pointer-events-none">
+        <div className="w-full h-full bg-gradient-to-r from-transparent via-purple-500 via-[#00F0FF] to-transparent animate-beam-bottom shadow-[0_0_15px_#8B5CF6]" />
+      </div>
+      <div className="absolute top-0 left-0 bottom-0 w-[3px] overflow-hidden pointer-events-none">
+        <div className="w-full h-full bg-gradient-to-b from-transparent via-[#00F0FF] via-emerald-400 to-transparent animate-beam-left shadow-[0_0_15px_#00F0FF]" />
+      </div>
+      <div className="absolute top-0 right-0 bottom-0 w-[3px] overflow-hidden pointer-events-none">
+        <div className="w-full h-full bg-gradient-to-b from-transparent via-emerald-400 via-purple-500 to-transparent animate-beam-right shadow-[0_0_15px_#10B981]" />
+      </div>
+
+      {/* Fullscreen Laser Sweep during Screen Capture */}
+      {state === "capturing" && (
+        <div className="absolute left-0 right-0 h-[3px] bg-gradient-to-r from-transparent via-cyan-300 via-amber-300 to-transparent shadow-[0_0_25px_#00F0FF] animate-laser-sweep pointer-events-none z-10" />
+      )}
+
+      {/* 4 Outer Screen Perimeter Sci-Fi HUD Corner Reticles */}
+      <div className="absolute top-3 left-3 w-10 h-10 border-t-2 border-l-2 border-cyan-400/80 drop-shadow-[0_0_8px_#00F0FF] pointer-events-none flex flex-col justify-start items-start pl-1.5 pt-1">
+        <span className="text-[7px] text-cyan-400 font-mono tracking-widest font-bold">JARVIS // HUD</span>
+        <span className="text-[6px] text-cyan-600 font-mono">SEC.01</span>
+      </div>
+      <div className="absolute top-3 right-3 w-10 h-10 border-t-2 border-r-2 border-cyan-400/80 drop-shadow-[0_0_8px_#00F0FF] pointer-events-none flex flex-col justify-start items-end pr-1.5 pt-1">
+        <span className="text-[7px] text-cyan-400 font-mono tracking-widest font-bold">OPTIC.LOCK</span>
+        <span className="text-[6px] text-cyan-600 font-mono">100% VIS</span>
+      </div>
+      <div className="absolute bottom-3 left-3 w-10 h-10 border-b-2 border-l-2 border-cyan-400/80 drop-shadow-[0_0_8px_#00F0FF] pointer-events-none flex flex-col justify-end items-start pl-1.5 pb-1">
+        <span className="text-[6px] text-cyan-600 font-mono">LAT.14MS</span>
+        <span className="text-[7px] text-cyan-400 font-mono tracking-widest font-bold">RECON // ACTIVE</span>
+      </div>
+      <div className="absolute bottom-3 right-3 w-10 h-10 border-b-2 border-r-2 border-cyan-400/80 drop-shadow-[0_0_8px_#00F0FF] pointer-events-none flex flex-col justify-end items-end pr-1.5 pb-1">
+        <span className="text-[6px] text-cyan-600 font-mono">FREQ.5.8G</span>
+        <span className="text-[7px] text-cyan-400 font-mono tracking-widest font-bold">TELEMETRY.SYNC</span>
+      </div>
+
+      {/* Top Screen Perimeter Status Capsule */}
+      <div className="pointer-events-auto absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full border border-cyan-500/40 bg-[#040C1A]/85 backdrop-blur-md flex items-center gap-2.5 shadow-[0_0_15px_rgba(0,240,255,0.25)] select-none z-20">
+        <div className="relative flex items-center justify-center w-3 h-3">
+          <div className="absolute inset-0 rounded-full border border-cyan-400 border-dashed animate-spin-slow" />
+          <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+        </div>
+        <span className="text-[10px] font-bold text-cyan-300 tracking-wider">
+          JARVIS ACTIVE SCREEN VIEWPORT
+        </span>
+        <span className="text-[8px] px-1.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/30 text-cyan-400 font-mono">
+          {hotkeyInfo.shortcut}
+        </span>
+
+        {!isTauri && (
+          <button
+            onClick={() => setSimulateDesktop(!simulateDesktop)}
+            className={`text-[9px] px-2 py-0.5 rounded border transition-colors flex items-center gap-1 ${
+              simulateDesktop
+                ? "border-emerald-400 bg-emerald-950/70 text-emerald-300"
+                : "border-cyan-500/30 bg-cyan-950/40 text-cyan-400 hover:text-cyan-200"
+            }`}
+            title="Toggle simulated background window to preview transparent center over desktop"
+          >
+            <Monitor className="w-2.5 h-2.5" />
+            <span>{simulateDesktop ? "DESKTOP ON" : "DESKTOP OFF"}</span>
+          </button>
+        )}
+      </div>
+
       {/* Draggable Jarvis HUD Card */}
       <div
         ref={cardRef}

@@ -15,6 +15,39 @@
       linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
     background-size: 24px 24px;
   }
+
+  /* Google Assistant / Gemini Screen Perimeter Lightning Glow */
+  .screen-lightning-idle {
+    box-shadow: inset 0 0 20px 2px rgba(0, 240, 255, 0.45),
+                inset 0 0 50px 6px rgba(0, 140, 255, 0.2);
+  }
+
+  .screen-lightning-capturing {
+    box-shadow: inset 0 0 35px 6px rgba(245, 158, 11, 0.9),
+                inset 0 0 75px 15px rgba(251, 191, 36, 0.5),
+                inset 0 0 120px 25px rgba(217, 119, 6, 0.25);
+    animation: lightningSurge 0.8s ease-in-out infinite alternate;
+  }
+
+  .screen-lightning-thinking {
+    box-shadow: inset 0 0 35px 5px rgba(0, 240, 255, 0.9),
+                inset 0 0 75px 15px rgba(139, 92, 246, 0.6),
+                inset 0 0 130px 25px rgba(59, 130, 246, 0.35);
+    animation: lightningSurge 1.6s ease-in-out infinite alternate;
+  }
+
+  .screen-lightning-ready {
+    box-shadow: inset 0 0 25px 3px rgba(0, 240, 255, 0.65),
+                inset 0 0 65px 10px rgba(16, 185, 129, 0.25),
+                inset 0 0 100px 18px rgba(0, 160, 255, 0.15);
+    animation: lightningBreathe 3s ease-in-out infinite alternate;
+  }
+
+  .screen-lightning-error {
+    box-shadow: inset 0 0 35px 5px rgba(244, 63, 94, 0.85),
+                inset 0 0 80px 15px rgba(225, 29, 72, 0.4);
+    animation: lightningSurge 1s ease-in-out infinite alternate;
+  }
 }
 
 @keyframes spinSlow {
@@ -47,6 +80,79 @@
   }
 }
 
+@keyframes lightningSurge {
+  0% {
+    filter: brightness(1) drop-shadow(0 0 10px #00F0FF);
+    opacity: 0.85;
+  }
+  100% {
+    filter: brightness(1.35) drop-shadow(0 0 30px #8B5CF6);
+    opacity: 1;
+  }
+}
+
+@keyframes lightningBreathe {
+  0% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes beamHorizontal {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes beamHorizontalReverse {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes beamVertical {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes beamVerticalReverse {
+  0% {
+    transform: translateY(100%);
+  }
+  100% {
+    transform: translateY(-100%);
+  }
+}
+
+@keyframes laserSweep {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 0.9;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
 .animate-spin-slow {
   animation: spinSlow 12s linear infinite;
 }
@@ -57,6 +163,26 @@
 
 .animate-pulse-core {
   animation: pulseCore 2.5s ease-in-out infinite;
+}
+
+.animate-beam-top {
+  animation: beamHorizontal 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-beam-bottom {
+  animation: beamHorizontalReverse 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-beam-left {
+  animation: beamVertical 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-beam-right {
+  animation: beamVerticalReverse 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-laser-sweep {
+  animation: laserSweep 1.8s ease-in-out infinite;
 }
 
 /* Custom sleek futuristic scrollbar */

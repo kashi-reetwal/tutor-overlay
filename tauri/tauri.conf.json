@@ -14,10 +14,8 @@
       {
         "title": "tutor-overlay",
         "label": "main",
-        "width": 460,
-        "height": 480,
-        "resizable": true,
-        "fullscreen": false,
+        "fullscreen": true,
+        "resizable": false,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
