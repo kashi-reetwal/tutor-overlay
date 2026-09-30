@@ -112,19 +112,33 @@ One small note per change, newest last. If a change touched stack, capture, hotk
   - Updated presets in Settings to verified Free Tier models: `[ 1.5-flash (Standard) ]`, `[ 2.0-flash (New) ]`, `[ 1.5-8b (Fast) ]`.
   - Added 1-click `[ ⚡ SWITCH TO GEMINI-1.5-FLASH & RETRY ]` recovery button directly inside HUD error alerts.
 
-## [2026-10-01] - Milestone 6: Screen Boundary Lightning & Transparent Center HUD
+## [2026-10-01] - Milestone 6: Google Assistant-Style Screen Boundary Lightning & Transparent Center Viewport
 
 ### Added & Enhanced
 - **Google Assistant / Gemini-Style Screen Boundary Lightning:**
   - Fullscreen perimeter multi-layer neon lightning glow (`screen-lightning-idle`, `screen-lightning-capturing`, `screen-lightning-thinking`, `screen-lightning-ready`, `screen-lightning-error`).
-  - 4 traveling perimeter animated lightning beams (top, right, bottom, left) with continuous neon gradient flow (`animate-beam-top`, `animate-beam-bottom`, etc.).
+  - 4 traveling perimeter animated lightning beams with continuous gradient flow (`.google-assistant-border`, `.arc-reactor-border`, `.stark-gold-border`).
+  - 4-Corner soft radial gradient ambient flares mirroring Google Assistant's corner curvature lighting on mobile and desktop.
+  - Multi-theme aura switcher:
+    - `🌈 Gemini Aurora`: Google's signature 4-color flowing gradient (Blue, Red, Yellow, Green, Cyan).
+    - `⚡ Arc Reactor`: High-voltage electric cyan and cobalt blue.
+    - `🔥 Mark 85`: Iron Man Stark crimson, gold, and amber.
+  - Lightning intensity slider (30% to 100%) and instant top-capsule theme switcher.
   - Full-width laser sweep scanline animation across the screen during screen capture.
 - **100% Transparent Center Viewport:**
-  - Center of the display is completely see-through, letting the user's active background windows (IDE, browser, documentation) show through clearly.
-  - Transparent overlay with `pointer-events-none` on backdrop and `pointer-events-auto` on the draggable JARVIS dialogue card.
+  - Center of the display is completely see-through, letting the user's active background windows (VS Code, Chrome, Terminal, games) show through clearly.
+  - Backdrop has `pointer-events-none` so clicks and focus pass through to background applications.
+  - Simulated Desktop toggle (`[ 🖥️ DESKTOP ON/OFF ]`) for previewing the transparent center over an active VS Code editor in browser mode.
+- **Collapsible Floating Assistant Capsule:**
+  - Added minimize button `[-]` to shrink the tactical HUD into a compact floating assistant pill (`JARVIS SCREEN ASSISTANT`).
+  - Features an animated spinning/pulsing Arc core, `[ ⚡ Screen Read ]` 1-click vision trigger, expand button `[ ⛶ ]`, and dismiss button `[ ✕ ]`.
+  - Gives 99% screen real estate to the background window while maintaining boundary lightning!
+- **Google Assistant Quick Action Chips:**
+  - Added instant action chips: `[ ⚡ Screen Overview ]`, `[ 🐞 Detect Bugs ]`, `[ 📝 Summarize Window ]`, `[ 💡 Next Action ]`.
 - **Tactical Perimeter HUD Elements:**
   - 4 large corner HUD targeting reticles with coordinate telemetry badges (`SEC.01`, `OPTIC.LOCK`, `RECON // ACTIVE`, `TELEMETRY.SYNC`).
-  - Top edge status beacon capsule with live Arc Core pulse, shortcut indicator (`Alt+T`), and desktop simulator toggle.
+  - Top edge status beacon capsule with live Arc Core pulse, shortcut indicator (`Alt+T`), quick theme cycle, and one-click `[ ⚡ SCAN SCREEN ]` button.
 - **Tauri Native Overlay Configuration:**
-  - Updated `tauri/tauri.conf.json` to `fullscreen: true` with `transparent: true` and `decorations: false` so boundary lightning hugs the physical monitor edges.
+  - Configured `tauri/tauri.conf.json` with `fullscreen: true`, `transparent: true`, `decorations: false`, and `alwaysOnTop: true` for native screen boundary hugging on Windows.
+
 

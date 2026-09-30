@@ -23,6 +23,9 @@ import {
   XCircle,
   FileCode,
   Monitor,
+  Minus,
+  Maximize2,
+  Sparkles,
 } from "lucide-react";
 
 type CardState = "idle" | "capturing" | "thinking" | "ready" | "error";
@@ -148,7 +151,27 @@ export default function App() {
   });
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [borderTheme, setBorderTheme] = useState<"assistant" | "arc" | "gold">(() => {
+    return (localStorage.getItem("tutor_border_theme") as any) || "assistant";
+  });
+  const [borderIntensity, setBorderIntensity] = useState<number>(() => {
+    const saved = localStorage.getItem("tutor_border_intensity");
+    return saved ? Number(saved) : 100;
+  });
+
+  const updateBorderTheme = (theme: "assistant" | "arc" | "gold") => {
+    setBorderTheme(theme);
+    localStorage.setItem("tutor_border_theme", theme);
+  };
+
+  const updateBorderIntensity = (val: number) => {
+    setBorderIntensity(val);
+    localStorage.setItem("tutor_border_intensity", String(val));
+  };
+
   const [simulateDesktop, setSimulateDesktop] = useState(false);
+
   const [testConnectionStatus, setTestConnectionStatus] = useState<{
     testing: boolean;
     success?: boolean;
@@ -826,8 +849,59 @@ User Query: ${prompt}`,
         </div>
       )}
 
+      {/* 4 Corner Ambient Flares (Google Assistant corner curvature lighting) */}
+      <div
+        className="absolute top-0 left-0 w-36 h-36 pointer-events-none rounded-br-full filter blur-xl transition-all duration-700"
+        style={{
+          opacity: (borderIntensity / 100) * 0.75,
+          background:
+            borderTheme === "assistant"
+              ? "radial-gradient(circle at 0% 0%, #4285F4 0%, #9B51E0 50%, transparent 80%)"
+              : borderTheme === "gold"
+              ? "radial-gradient(circle at 0% 0%, #F59E0B 0%, #EF4444 50%, transparent 80%)"
+              : "radial-gradient(circle at 0% 0%, #00F0FF 0%, #3B82F6 50%, transparent 80%)",
+        }}
+      />
+      <div
+        className="absolute top-0 right-0 w-36 h-36 pointer-events-none rounded-bl-full filter blur-xl transition-all duration-700"
+        style={{
+          opacity: (borderIntensity / 100) * 0.75,
+          background:
+            borderTheme === "assistant"
+              ? "radial-gradient(circle at 100% 0%, #EA4335 0%, #FBBC05 50%, transparent 80%)"
+              : borderTheme === "gold"
+              ? "radial-gradient(circle at 100% 0%, #EF4444 0%, #FBBF24 50%, transparent 80%)"
+              : "radial-gradient(circle at 100% 0%, #00F0FF 0%, #06B6D4 50%, transparent 80%)",
+        }}
+      />
+      <div
+        className="absolute bottom-0 left-0 w-36 h-36 pointer-events-none rounded-tr-full filter blur-xl transition-all duration-700"
+        style={{
+          opacity: (borderIntensity / 100) * 0.75,
+          background:
+            borderTheme === "assistant"
+              ? "radial-gradient(circle at 0% 100%, #34A853 0%, #4285F4 50%, transparent 80%)"
+              : borderTheme === "gold"
+              ? "radial-gradient(circle at 0% 100%, #FBBF24 0%, #F59E0B 50%, transparent 80%)"
+              : "radial-gradient(circle at 0% 100%, #00F0FF 0%, #3B82F6 50%, transparent 80%)",
+        }}
+      />
+      <div
+        className="absolute bottom-0 right-0 w-36 h-36 pointer-events-none rounded-tl-full filter blur-xl transition-all duration-700"
+        style={{
+          opacity: (borderIntensity / 100) * 0.75,
+          background:
+            borderTheme === "assistant"
+              ? "radial-gradient(circle at 100% 100%, #FBBC05 0%, #34A853 50%, transparent 80%)"
+              : borderTheme === "gold"
+              ? "radial-gradient(circle at 100% 100%, #EF4444 0%, #F59E0B 50%, transparent 80%)"
+              : "radial-gradient(circle at 100% 100%, #00F0FF 0%, #10B981 50%, transparent 80%)",
+        }}
+      />
+
       {/* Google Assistant / Gemini Screen Boundary Lightning Glow */}
       <div
+        style={{ opacity: borderIntensity / 100 }}
         className={`absolute inset-0 pointer-events-none transition-all duration-700 ${
           state === "capturing"
             ? "screen-lightning-capturing"
@@ -842,17 +916,53 @@ User Query: ${prompt}`,
       />
 
       {/* Perimeter Animated Neon Lightning Beams */}
-      <div className="absolute top-0 left-0 right-0 h-[3px] overflow-hidden pointer-events-none">
-        <div className="w-full h-full bg-gradient-to-r from-transparent via-[#00F0FF] via-purple-500 to-transparent animate-beam-top shadow-[0_0_15px_#00F0FF]" />
+      <div className="absolute top-0 left-0 right-0 h-[3.5px] overflow-hidden pointer-events-none">
+        <div
+          className={`w-full h-full animate-beam-top ${
+            borderTheme === "assistant"
+              ? "google-assistant-border shadow-[0_0_18px_#4285F4]"
+              : borderTheme === "gold"
+              ? "stark-gold-border shadow-[0_0_18px_#F59E0B]"
+              : "arc-reactor-border shadow-[0_0_18px_#00F0FF]"
+          }`}
+          style={{ opacity: borderIntensity / 100 }}
+        />
       </div>
-      <div className="absolute bottom-0 left-0 right-0 h-[3px] overflow-hidden pointer-events-none">
-        <div className="w-full h-full bg-gradient-to-r from-transparent via-purple-500 via-[#00F0FF] to-transparent animate-beam-bottom shadow-[0_0_15px_#8B5CF6]" />
+      <div className="absolute bottom-0 left-0 right-0 h-[3.5px] overflow-hidden pointer-events-none">
+        <div
+          className={`w-full h-full animate-beam-bottom ${
+            borderTheme === "assistant"
+              ? "google-assistant-border shadow-[0_0_18px_#34A853]"
+              : borderTheme === "gold"
+              ? "stark-gold-border shadow-[0_0_18px_#EF4444]"
+              : "arc-reactor-border shadow-[0_0_18px_#00F0FF]"
+          }`}
+          style={{ opacity: borderIntensity / 100 }}
+        />
       </div>
-      <div className="absolute top-0 left-0 bottom-0 w-[3px] overflow-hidden pointer-events-none">
-        <div className="w-full h-full bg-gradient-to-b from-transparent via-[#00F0FF] via-emerald-400 to-transparent animate-beam-left shadow-[0_0_15px_#00F0FF]" />
+      <div className="absolute top-0 left-0 bottom-0 w-[3.5px] overflow-hidden pointer-events-none">
+        <div
+          className={`w-full h-full animate-beam-left ${
+            borderTheme === "assistant"
+              ? "google-assistant-border shadow-[0_0_18px_#9B51E0]"
+              : borderTheme === "gold"
+              ? "stark-gold-border shadow-[0_0_18px_#FBBF24]"
+              : "arc-reactor-border shadow-[0_0_18px_#00F0FF]"
+          }`}
+          style={{ opacity: borderIntensity / 100 }}
+        />
       </div>
-      <div className="absolute top-0 right-0 bottom-0 w-[3px] overflow-hidden pointer-events-none">
-        <div className="w-full h-full bg-gradient-to-b from-transparent via-emerald-400 via-purple-500 to-transparent animate-beam-right shadow-[0_0_15px_#10B981]" />
+      <div className="absolute top-0 right-0 bottom-0 w-[3.5px] overflow-hidden pointer-events-none">
+        <div
+          className={`w-full h-full animate-beam-right ${
+            borderTheme === "assistant"
+              ? "google-assistant-border shadow-[0_0_18px_#EA4335]"
+              : borderTheme === "gold"
+              ? "stark-gold-border shadow-[0_0_18px_#DC2626]"
+              : "arc-reactor-border shadow-[0_0_18px_#00F0FF]"
+          }`}
+          style={{ opacity: borderIntensity / 100 }}
+        />
       </div>
 
       {/* Fullscreen Laser Sweep during Screen Capture */}
@@ -879,17 +989,45 @@ User Query: ${prompt}`,
       </div>
 
       {/* Top Screen Perimeter Status Capsule */}
-      <div className="pointer-events-auto absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full border border-cyan-500/40 bg-[#040C1A]/85 backdrop-blur-md flex items-center gap-2.5 shadow-[0_0_15px_rgba(0,240,255,0.25)] select-none z-20">
+      <div className="pointer-events-auto absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full border border-cyan-500/40 bg-[#040C1A]/90 backdrop-blur-md flex items-center gap-2.5 shadow-[0_0_20px_rgba(0,240,255,0.25)] select-none z-20">
         <div className="relative flex items-center justify-center w-3 h-3">
-          <div className="absolute inset-0 rounded-full border border-cyan-400 border-dashed animate-spin-slow" />
-          <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+          <div className={`absolute inset-0 rounded-full border border-dashed animate-spin-slow ${borderTheme === "assistant" ? "border-purple-400" : "border-cyan-400"}`} />
+          <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${borderTheme === "assistant" ? "bg-amber-400" : "bg-cyan-400"}`} />
         </div>
-        <span className="text-[10px] font-bold text-cyan-300 tracking-wider">
-          JARVIS ACTIVE SCREEN VIEWPORT
+        <span className="text-[10px] font-bold text-cyan-200 tracking-wider">
+          {borderTheme === "assistant" ? "GEMINI LIGHTNING ACTIVE" : "JARVIS ACTIVE VIEWPORT"}
         </span>
-        <span className="text-[8px] px-1.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/30 text-cyan-400 font-mono">
+        <span className="text-[8px] px-1.5 py-0.5 rounded bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 font-mono">
           {hotkeyInfo.shortcut}
         </span>
+
+        {/* Quick Theme Switcher Pill */}
+        <button
+          onClick={() => {
+            const next = borderTheme === "assistant" ? "arc" : borderTheme === "arc" ? "gold" : "assistant";
+            updateBorderTheme(next);
+          }}
+          className="text-[9px] px-2 py-0.5 rounded border border-cyan-500/30 bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 font-mono flex items-center gap-1 transition-colors"
+          title="Cycle screen boundary lighting aura theme"
+        >
+          <Sparkles className="w-2.5 h-2.5 text-cyan-300" />
+          <span>
+            {borderTheme === "assistant" && "AURORA"}
+            {borderTheme === "arc" && "ARC"}
+            {borderTheme === "gold" && "MARK-85"}
+          </span>
+        </button>
+
+        {/* One-Click Screen Scan Trigger */}
+        <button
+          onClick={() => handleTrigger("Explain what is displayed on my screen and highlight key elements.")}
+          disabled={state === "capturing" || state === "thinking"}
+          className="text-[9px] px-2 py-0.5 rounded border border-cyan-400/60 bg-cyan-500/25 hover:bg-cyan-500/40 text-cyan-100 font-bold flex items-center gap-1 transition-all shadow-[0_0_10px_rgba(0,240,255,0.3)]"
+          title="Analyze background window immediately"
+        >
+          <Zap className="w-2.5 h-2.5 text-cyan-300" />
+          <span>SCAN SCREEN</span>
+        </button>
 
         {!isTauri && (
           <button
@@ -914,7 +1052,9 @@ User Query: ${prompt}`,
           transform: position ? `translate3d(${position.x}px, ${position.y}px, 0)` : undefined,
           visibility: position ? "visible" : "hidden",
         }}
-        className={`pointer-events-auto absolute top-0 left-0 w-full max-w-[470px] rounded-xl border transition-shadow duration-300 overflow-hidden backdrop-blur-2xl flex flex-col jarvis-grid ${
+        className={`pointer-events-auto absolute top-0 left-0 w-full ${
+          isCollapsed ? "max-w-[430px]" : "max-w-[470px]"
+        } rounded-xl border transition-all duration-300 overflow-hidden backdrop-blur-2xl flex flex-col jarvis-grid ${
           state === "error"
             ? "border-rose-500/60 bg-[#0A050B]/95 shadow-[0_0_35px_rgba(244,63,94,0.35)]"
             : state === "thinking"
@@ -922,63 +1062,145 @@ User Query: ${prompt}`,
             : "border-cyan-500/40 bg-[#050B16]/90 jarvis-glow"
         }`}
       >
-        {/* Sci-Fi Corner Brackets */}
-        <div className="absolute top-1 left-1 w-2.5 h-2.5 border-t-2 border-l-2 border-cyan-400 pointer-events-none" />
-        <div className="absolute top-1 right-1 w-2.5 h-2.5 border-t-2 border-r-2 border-cyan-400 pointer-events-none" />
-        <div className="absolute bottom-1 left-1 w-2.5 h-2.5 border-b-2 border-l-2 border-cyan-400 pointer-events-none" />
-        <div className="absolute bottom-1 right-1 w-2.5 h-2.5 border-b-2 border-r-2 border-cyan-400 pointer-events-none" />
-
-        {/* Header / Drag Bar */}
-        <div
-          data-tauri-drag-region
-          onMouseDown={handleMouseDown}
-          className="flex items-center justify-between px-3.5 py-2.5 border-b border-cyan-500/30 bg-[#08152B]/80 cursor-grab active:cursor-grabbing select-none"
-        >
-          <div className="flex items-center gap-2 pointer-events-none">
-            {/* Glowing Mini Arc Core */}
-            <div className="relative flex items-center justify-center w-5 h-5">
-              <div className="absolute inset-0 rounded-full border border-cyan-400/50 border-dashed animate-spin-slow" />
-              <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_10px_#00F0FF] animate-pulse" />
+        {isCollapsed ? (
+          <div
+            data-tauri-drag-region
+            onMouseDown={handleMouseDown}
+            className="flex items-center justify-between px-3.5 py-2.5 bg-[#08152B]/95 cursor-grab active:cursor-grabbing select-none"
+          >
+            <div className="flex items-center gap-2.5 pointer-events-none">
+              <div className="relative flex items-center justify-center w-5 h-5">
+                <div
+                  className={`absolute inset-0 rounded-full border border-dashed animate-spin-slow ${
+                    borderTheme === "assistant" ? "border-purple-400" : "border-cyan-400"
+                  }`}
+                />
+                <div
+                  className={`w-2.5 h-2.5 rounded-full animate-pulse shadow-[0_0_10px_#00F0FF] ${
+                    borderTheme === "assistant"
+                      ? "bg-gradient-to-r from-blue-400 to-amber-400"
+                      : "bg-cyan-400"
+                  }`}
+                />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[11px] font-bold text-cyan-200 tracking-wider font-mono">
+                  {state === "thinking"
+                    ? "ANALYZING SCREEN..."
+                    : state === "capturing"
+                    ? "CAPTURING SCREEN..."
+                    : "JARVIS SCREEN ASSISTANT"}
+                </span>
+                <span className="text-[8px] text-cyan-500 font-mono">
+                  {state === "ready" ? "ANSWER READY // EXPAND" : "100% TRANSPARENT CENTER"}
+                </span>
+              </div>
             </div>
 
-            <div className="flex flex-col">
-              <span className="text-[11px] font-bold tracking-widest text-cyan-300 jarvis-text-glow">
-                JARVIS // OVERLAY HUD
-              </span>
-              <span className="text-[8px] text-cyan-500/80 tracking-wider">
-                TACTICAL TUTOR ENGINE v1.0
-              </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleTrigger("Explain what is displayed on my screen and highlight key elements.");
+                }}
+                disabled={state === "capturing" || state === "thinking"}
+                className="px-2 py-1 rounded bg-cyan-500/25 hover:bg-cyan-500/40 border border-cyan-400/50 text-[10px] text-cyan-200 font-bold flex items-center gap-1 transition-all shadow-[0_0_8px_rgba(0,240,255,0.2)]"
+                title="Capture & Explain Screen"
+              >
+                <Zap className="w-3 h-3 text-cyan-300" />
+                <span>Screen Read</span>
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsCollapsed(false);
+                }}
+                className="p-1 rounded-md text-cyan-400 hover:text-cyan-200 hover:bg-cyan-950/60 transition-colors"
+                title="Expand full HUD"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDismiss();
+                }}
+                className="p-1 rounded-md text-cyan-400/70 hover:text-rose-300 hover:bg-rose-950/40 transition-colors"
+                title="Dismiss"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
+        ) : (
+          <>
+            {/* Sci-Fi Corner Brackets */}
+            <div className="absolute top-1 left-1 w-2.5 h-2.5 border-t-2 border-l-2 border-cyan-400 pointer-events-none" />
+            <div className="absolute top-1 right-1 w-2.5 h-2.5 border-t-2 border-r-2 border-cyan-400 pointer-events-none" />
+            <div className="absolute bottom-1 left-1 w-2.5 h-2.5 border-b-2 border-l-2 border-cyan-400 pointer-events-none" />
+            <div className="absolute bottom-1 right-1 w-2.5 h-2.5 border-b-2 border-r-2 border-cyan-400 pointer-events-none" />
 
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] px-1.5 py-0.5 rounded border border-cyan-500/40 bg-cyan-950/40 text-cyan-300 font-mono">
-              {hotkeyInfo.shortcut}
-            </span>
-
-            <GripHorizontal className="w-3.5 h-3.5 text-cyan-500/60" />
-
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className={`p-1 rounded-md transition-colors ${
-                showSettings
-                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/50"
-                  : "text-cyan-400/70 hover:text-cyan-200 hover:bg-cyan-950/60"
-              }`}
-              title="Tactical AI Settings & API Keys"
+            {/* Header / Drag Bar */}
+            <div
+              data-tauri-drag-region
+              onMouseDown={handleMouseDown}
+              className="flex items-center justify-between px-3.5 py-2.5 border-b border-cyan-500/30 bg-[#08152B]/80 cursor-grab active:cursor-grabbing select-none"
             >
-              <Settings className="w-3.5 h-3.5" />
-            </button>
+              <div className="flex items-center gap-2 pointer-events-none">
+                {/* Glowing Mini Arc Core */}
+                <div className="relative flex items-center justify-center w-5 h-5">
+                  <div className="absolute inset-0 rounded-full border border-cyan-400/50 border-dashed animate-spin-slow" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_10px_#00F0FF] animate-pulse" />
+                </div>
 
-            <button
-              onClick={handleDismiss}
-              className="p-1 rounded-md text-cyan-400/70 hover:text-rose-300 hover:bg-rose-950/40 transition-colors"
-              title="Dismiss Interface (Esc)"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-bold tracking-widest text-cyan-300 jarvis-text-glow">
+                    JARVIS // OVERLAY HUD
+                  </span>
+                  <span className="text-[8px] text-cyan-500/80 tracking-wider">
+                    TACTICAL TUTOR ENGINE v1.0
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] px-1.5 py-0.5 rounded border border-cyan-500/40 bg-cyan-950/40 text-cyan-300 font-mono">
+                  {hotkeyInfo.shortcut}
+                </span>
+
+                <GripHorizontal className="w-3.5 h-3.5 text-cyan-500/60" />
+
+                <button
+                  onClick={() => setIsCollapsed(true)}
+                  className="p-1 rounded-md text-cyan-400/70 hover:text-cyan-200 hover:bg-cyan-950/60 transition-colors"
+                  title="Minimize to Floating Assistant Capsule"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  className={`p-1 rounded-md transition-colors ${
+                    showSettings
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/50"
+                      : "text-cyan-400/70 hover:text-cyan-200 hover:bg-cyan-950/60"
+                  }`}
+                  title="Tactical AI Settings & API Keys"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  onClick={handleDismiss}
+                  className="p-1 rounded-md text-cyan-400/70 hover:text-rose-300 hover:bg-rose-950/40 transition-colors"
+                  title="Dismiss Interface (Esc)"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
 
         {/* Telemetry Status Bar */}
         <div className="px-3.5 py-1.5 border-b border-cyan-500/20 flex items-center justify-between text-[10px] bg-[#030914]/60">
@@ -1183,6 +1405,54 @@ User Query: ${prompt}`,
                 </span>
               )}
             </div>
+
+            {/* Screen Boundary Lightning Aura Customization */}
+            <div className="pt-2 border-t border-cyan-500/20">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[9px] text-cyan-400/80 flex items-center gap-1 font-bold">
+                  <Sparkles className="w-2.5 h-2.5 text-cyan-400" />
+                  <span>SCREEN BOUNDARY LIGHTNING AURA</span>
+                </label>
+                <span className="text-[9px] text-cyan-500 font-mono">GOOGLE ASSISTANT STYLE</span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { id: "assistant", label: "🌈 Gemini Aurora", desc: "Google 4-Color Flow" },
+                  { id: "arc", label: "⚡ Arc Reactor", desc: "Cyan & Cobalt" },
+                  { id: "gold", label: "🔥 Mark 85", desc: "Crimson & Gold" },
+                ].map((th) => (
+                  <button
+                    key={th.id}
+                    type="button"
+                    onClick={() => updateBorderTheme(th.id as any)}
+                    className={`p-1.5 rounded border text-left flex flex-col transition-all ${
+                      borderTheme === th.id
+                        ? "border-cyan-400 bg-cyan-950/70 text-cyan-100 shadow-[0_0_10px_rgba(0,240,255,0.25)] font-bold"
+                        : "border-cyan-500/30 bg-[#020712] hover:border-cyan-400/40 text-cyan-400"
+                    }`}
+                  >
+                    <span className="text-[10px]">{th.label}</span>
+                    <span className="text-[8px] text-cyan-500">{th.desc}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-[8px] text-cyan-500">LIGHTNING INTENSITY:</span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min="30"
+                    max="100"
+                    value={borderIntensity}
+                    onChange={(e) => updateBorderIntensity(Number(e.target.value))}
+                    className="w-28 h-1 bg-cyan-950 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                  />
+                  <span className="text-[9px] text-cyan-400 font-mono w-6 text-right">{borderIntensity}%</span>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1364,6 +1634,27 @@ User Query: ${prompt}`,
           <div ref={contentEndRef} />
         </div>
 
+        {/* Google Assistant Style Quick Action Chips */}
+        <div className="px-3 py-1.5 border-t border-cyan-500/20 bg-[#020712]/70 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <span className="text-[8px] text-cyan-500 font-mono shrink-0">QUICK:</span>
+          {[
+            { label: "⚡ Screen Overview", prompt: "Explain everything visible on this screen clearly." },
+            { label: "🐞 Detect Bugs", prompt: "Inspect the visible code for any syntax errors, bugs, or anti-patterns." },
+            { label: "📝 Summarize Window", prompt: "Provide a quick, concise 3-bullet executive summary of this window." },
+            { label: "💡 Next Action", prompt: "What should be the optimal next step or implementation here?" },
+          ].map((chip, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => handleTrigger(chip.prompt)}
+              disabled={state === "capturing" || state === "thinking"}
+              className="shrink-0 px-2 py-0.5 rounded-full border border-cyan-500/30 bg-cyan-950/40 hover:bg-cyan-900/60 hover:border-cyan-400/60 text-cyan-300 text-[9px] transition-all"
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+
         {/* Input Console */}
         <div className="p-2.5 border-t border-cyan-500/30 bg-[#040C1A]/90">
           <form onSubmit={handleFollowUpSubmit} className="flex items-center gap-1.5">
@@ -1389,7 +1680,9 @@ User Query: ${prompt}`,
             </button>
           </form>
         </div>
-      </div>
-    </div>
+      </>
+    )}
+  </div>
+</div>
   );
 }
