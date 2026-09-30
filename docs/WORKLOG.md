@@ -67,3 +67,14 @@ One small note per change, newest last. If a change touched stack, capture, hotk
 - **App Icon:** Designed and generated a high-resolution 3D neon cyber-tutor graduation cap & lens icon and replaced placeholder at `tauri/icon.png`.
 - **Documentation:** Updated `docs/TECHSTACK.md`, `docs/PLAYBOOK.md`, and `docs/WORKLOG.md` detailing prototype testing instructions for both browser preview (`npm run dev:frontend`) and native desktop overlay (`npm run dev:tauri`).
 
+---
+
+## 2026-09-30 — Working UI Prototype Completed & Deployed Locally
+
+- **Interactive Markdown Renderer:** Added `react-markdown` to format headers, code blocks, lists, and syntax cleanly in tutor responses.
+- **Quick Action Chips:** Added quick-invoke prompt buttons for "Explain Concept", "Find Bug / Error", and "Summarize".
+- **In-App AI Settings:** Built settings drawer supporting direct in-browser testing with Gemini (`gemini-1.5-flash`, `gemini-2.0-flash`) and OpenAI API keys stored in local settings.
+- **Test Image Workbench:** Enabled test screenshot uploads and direct clipboard image paste (`Ctrl+V`) for immediate browser testing of vision tutoring without desktop runtime dependencies.
+- **Multi-turn Chat Thread:** Rendered conversation history with speaker bubbles, copy buttons, and interactive follow-ups.
+- **Vite Dev Server:** Started live daemon at `http://localhost:1420/` with verified production build passing in 10s.
+
