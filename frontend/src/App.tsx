@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import {
-  Sparkles,
   X,
   Send,
   Camera,
@@ -13,15 +12,19 @@ import {
   Settings,
   Upload,
   Key,
-  HelpCircle,
-  Bug,
-  BookOpen,
+  Shield,
+  ExternalLink,
+  Cpu,
+  Radio,
+  Terminal,
+  Activity,
+  Zap,
 } from "lucide-react";
 
 type CardState = "idle" | "capturing" | "thinking" | "ready" | "error";
 
 interface Message {
-  role: "user" | "tutor";
+  role: "user" | "jarvis";
   content: string;
 }
 
@@ -76,17 +79,71 @@ export default function App() {
     }
   });
 
+  // --- FREE DRAGGING SYSTEM (Whole Screen) ---
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const isDraggingRef = useRef(false);
+  const dragStartOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Initialize position to bottom-right or center upon load
+  useEffect(() => {
+    if (position === null) {
+      const initialX = Math.max(20, window.innerWidth - 490);
+      const initialY = Math.max(20, window.innerHeight - 560);
+      setPosition({ x: initialX, y: initialY });
+    }
+  }, [position]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Only drag from header or grip handle
+    if ((e.target as HTMLElement).closest("button") || (e.target as HTMLElement).closest("input")) {
+      return;
+    }
+    isDraggingRef.current = true;
+    dragStartOffsetRef.current = {
+      x: e.clientX - (position?.x ?? 0),
+      y: e.clientY - (position?.y ?? 0),
+    };
+    e.preventDefault();
+  };
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDraggingRef.current) return;
+    const cardWidth = cardRef.current?.offsetWidth || 460;
+    const cardHeight = cardRef.current?.offsetHeight || 500;
+
+    let newX = e.clientX - dragStartOffsetRef.current.x;
+    let newY = e.clientY - dragStartOffsetRef.current.y;
+
+    // Clamp within viewport
+    newX = Math.max(10, Math.min(window.innerWidth - cardWidth - 10, newX));
+    newY = Math.max(10, Math.min(window.innerHeight - cardHeight - 10, newY));
+
+    setPosition({ x: newX, y: newY });
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    isDraggingRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
+
   // Browser test mode image upload
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const contentEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll when messages or streaming text updates
   useEffect(() => {
     contentEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, currentStreamingText, state]);
 
-  // Persist settings
   const updateSettings = (partial: Partial<UserSettings>) => {
     const updated = { ...settings, ...partial };
     setSettings(updated);
@@ -119,7 +176,7 @@ export default function App() {
         });
 
         unlistenEnd = await listen<string>("tutor:stream_end", (event) => {
-          setMessages((prev) => [...prev, { role: "tutor", content: event.payload }]);
+          setMessages((prev) => [...prev, { role: "jarvis", content: event.payload }]);
           setCurrentStreamingText("");
           setState("ready");
         });
@@ -148,7 +205,7 @@ export default function App() {
     };
   }, []);
 
-  // Global Escape key listener to dismiss
+  // Escape key listener to dismiss
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -159,7 +216,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Handle clipboard paste of images in browser test mode
+  // Clipboard paste of images in browser test mode
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       if (isTauri) return;
@@ -174,6 +231,7 @@ export default function App() {
             reader.onload = (event) => {
               const b64 = event.target?.result as string;
               setPreviewImage(b64);
+              handleTrigger("Analyze telemetry and visual context in this captured frame.");
             };
             reader.readAsDataURL(file);
           }
@@ -194,21 +252,21 @@ export default function App() {
     setCurrentStreamingText("");
 
     if (!settings.apiKey) {
-      // Simulate realistic streaming response if no API key is provided
-      const sampleText = `### 🎓 Tutor Explanation: Screen Context\n\n- **Identified Element:** The focused window contains code structure and UI logic.\n- **Key Concept:** The active overlay listens globally for \`${hotkeyInfo.shortcut}\` and captures the foreground window using Win32 GDI.\n- **Suggested Action:** To run real AI analysis in browser preview, paste your **Gemini or OpenAI API key** in Settings ⚙️ above.\n\n\`\`\`typescript\n// Test follow-up queries or ask clarification questions below\nconsole.log("Ready for your questions!");\n\`\`\``;
+      // High-tech Jarvis simulation stream
+      const sampleText = `### 🌐 JARVIS // TACTICAL ANALYSIS COMPLETE\n\n**DIAGNOSTIC TELEMETRY:**\n- **Target:** Visual frame analysis lock acquired.\n- **Neural Engine:** Operating in high-speed tutoring mode.\n- **Core Assessment:** The active viewport exhibits structured logic modules and UI parameters requiring optimization.\n\n\`\`\`rust\n// JARVIS telemetry: Win32 active window pipeline is active\npub fn execute_protocol() -> Status {\n    Status::Online\n}\n\`\`\`\n\n> 💡 **Protocol Note:** For live cloud analysis with your personal screen, configure your free **Gemini API key** in Settings ⚙️ (top right), or press \`Alt+T\` in desktop mode.`;
 
       let index = 0;
       const interval = setInterval(() => {
-        index += 25;
+        index += 28;
         if (index <= sampleText.length) {
           setCurrentStreamingText(sampleText.slice(0, index));
         } else {
           clearInterval(interval);
-          setMessages((prev) => [...prev, { role: "tutor", content: sampleText }]);
+          setMessages((prev) => [...prev, { role: "jarvis", content: sampleText }]);
           setCurrentStreamingText("");
           setState("ready");
         }
-      }, 50);
+      }, 35);
       return;
     }
 
@@ -224,7 +282,7 @@ export default function App() {
             contents: [
               {
                 parts: [
-                  { text: prompt },
+                  { text: `System: You are JARVIS, an ultra-intelligent, sharp, and encouraging AI tutor. Analyze this screenshot and deliver a crisp, tactical tutoring breakdown.\n\nUser Question: ${prompt}` },
                   { inlineData: { mimeType: "image/jpeg", data: cleanB64 } },
                 ],
               },
@@ -233,7 +291,7 @@ export default function App() {
         });
 
         if (!res.ok) {
-          throw new Error(`Gemini API error: ${await res.text()}`);
+          throw new Error(`Gemini Protocol Rejected (${res.status}): ${await res.text()}`);
         }
 
         const reader = res.body?.getReader();
@@ -260,7 +318,7 @@ export default function App() {
             }
           }
         }
-        setMessages((prev) => [...prev, { role: "tutor", content: accumulated }]);
+        setMessages((prev) => [...prev, { role: "jarvis", content: accumulated }]);
         setCurrentStreamingText("");
         setState("ready");
       } else {
@@ -278,6 +336,10 @@ export default function App() {
             stream: true,
             messages: [
               {
+                role: "system",
+                content: "You are JARVIS, an ultra-intelligent AI tutor. Break down the user's screen clearly with tactical highlights.",
+              },
+              {
                 role: "user",
                 content: [
                   { type: "text", text: prompt },
@@ -292,7 +354,7 @@ export default function App() {
         });
 
         if (!res.ok) {
-          throw new Error(`OpenAI API error: ${await res.text()}`);
+          throw new Error(`AI Provider Failure: ${await res.text()}`);
         }
 
         const reader = res.body?.getReader();
@@ -318,12 +380,12 @@ export default function App() {
             }
           }
         }
-        setMessages((prev) => [...prev, { role: "tutor", content: accumulated }]);
+        setMessages((prev) => [...prev, { role: "jarvis", content: accumulated }]);
         setCurrentStreamingText("");
         setState("ready");
       }
     } catch (err: any) {
-      setErrorMessage(err.message || "Failed to query AI provider");
+      setErrorMessage(err.message || "JARVIS Uplink Error");
       setState("error");
     }
   };
@@ -335,17 +397,16 @@ export default function App() {
     setMessages([]);
 
     const prompt =
-      customPrompt || "Please explain the core concept or content shown on this screen concisely.";
+      customPrompt || "JARVIS, analyze the visible context on screen and deliver an executive tutoring brief.";
 
     if (isTauri) {
       try {
         await tauriInvoke("trigger_tutor", { userQuery: prompt });
       } catch (err: any) {
-        setErrorMessage(err?.toString() || "Failed to trigger tutor capture");
+        setErrorMessage(err?.toString() || "Tactical capture failed");
         setState("error");
       }
     } else {
-      // Browser preview mode
       setTimeout(() => {
         const dummyImg = previewImage || "placeholder";
         runBrowserVisionAI(dummyImg, prompt);
@@ -366,14 +427,13 @@ export default function App() {
       try {
         await tauriInvoke("send_followup", { query });
       } catch (err: any) {
-        setErrorMessage(err?.toString() || "Follow-up failed");
+        setErrorMessage(err?.toString() || "Command link failed");
         setState("ready");
       }
     } else {
-      // Browser preview follow-up simulation or live call
       setTimeout(() => {
-        const followUpAnswer = `**Response to:** "${query}"\n\n- The explanation considers prior context.\n- When running natively, Windows active-window capture feeds directly into your chosen vision model.`;
-        setMessages((prev) => [...prev, { role: "tutor", content: followUpAnswer }]);
+        const followUpAnswer = `**JARVIS Response // Telemetry Lock:**\n\nAddressing query: *"${query}"*\n\n- Analyzing referenced variables in the prior frame.\n- Solution parameters confirmed. No structural anomalies detected.`;
+        setMessages((prev) => [...prev, { role: "jarvis", content: followUpAnswer }]);
         setState("ready");
       }, 700);
     }
@@ -400,95 +460,169 @@ export default function App() {
       reader.onload = (event) => {
         const b64 = event.target?.result as string;
         setPreviewImage(b64);
-        handleTrigger("Please tutor me on what is visible in this uploaded image.");
+        handleTrigger("Analyze telemetry and visual context in this uploaded frame.");
       };
       reader.readAsDataURL(file);
     }
   };
 
   return (
-    <div className="w-full h-screen p-3 flex flex-col justify-end items-end select-none font-sans antialiased text-neutral-100 bg-transparent">
-      {/* Floating Tutor Card */}
+    <div className="fixed inset-0 w-screen h-screen overflow-hidden select-none pointer-events-none font-mono antialiased text-cyan-100 bg-transparent">
+      {/* Draggable Jarvis HUD Card */}
       <div
-        className={`w-full max-w-[450px] rounded-2xl border transition-all duration-200 overflow-hidden shadow-2xl backdrop-blur-2xl flex flex-col ${
+        ref={cardRef}
+        style={{
+          transform: position ? `translate3d(${position.x}px, ${position.y}px, 0)` : undefined,
+          visibility: position ? "visible" : "hidden",
+        }}
+        className={`pointer-events-auto absolute top-0 left-0 w-full max-w-[470px] rounded-xl border transition-shadow duration-300 overflow-hidden backdrop-blur-2xl flex flex-col jarvis-grid ${
           state === "error"
-            ? "border-rose-500/50 bg-neutral-950/95 shadow-rose-950/40"
+            ? "border-rose-500/60 bg-[#0A050B]/95 shadow-[0_0_35px_rgba(244,63,94,0.35)]"
             : state === "thinking"
-            ? "border-sky-500/50 bg-neutral-950/95 shadow-sky-950/40"
-            : "border-neutral-700/60 bg-neutral-950/90 shadow-black/70"
+            ? "border-cyan-400/80 bg-[#040C1A]/95 jarvis-glow-active"
+            : "border-cyan-500/40 bg-[#050B16]/90 jarvis-glow"
         }`}
-        style={{ maxHeight: "calc(100vh - 24px)" }}
       >
+        {/* Sci-Fi Corner Brackets */}
+        <div className="absolute top-1 left-1 w-2.5 h-2.5 border-t-2 border-l-2 border-cyan-400 pointer-events-none" />
+        <div className="absolute top-1 right-1 w-2.5 h-2.5 border-t-2 border-r-2 border-cyan-400 pointer-events-none" />
+        <div className="absolute bottom-1 left-1 w-2.5 h-2.5 border-b-2 border-l-2 border-cyan-400 pointer-events-none" />
+        <div className="absolute bottom-1 right-1 w-2.5 h-2.5 border-b-2 border-r-2 border-cyan-400 pointer-events-none" />
+
         {/* Header / Drag Bar */}
         <div
           data-tauri-drag-region
-          className="flex items-center justify-between px-3.5 py-2.5 border-b border-neutral-800/80 bg-neutral-900/70 cursor-grab active:cursor-grabbing"
+          onMouseDown={handleMouseDown}
+          className="flex items-center justify-between px-3.5 py-2.5 border-b border-cyan-500/30 bg-[#08152B]/80 cursor-grab active:cursor-grabbing select-none"
         >
           <div className="flex items-center gap-2 pointer-events-none">
-            <div className="p-1 rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-600 text-white shadow-sm">
-              <Sparkles className="w-3.5 h-3.5" />
+            {/* Glowing Mini Arc Core */}
+            <div className="relative flex items-center justify-center w-5 h-5">
+              <div className="absolute inset-0 rounded-full border border-cyan-400/50 border-dashed animate-spin-slow" />
+              <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_10px_#00F0FF] animate-pulse" />
             </div>
-            <span className="text-xs font-semibold tracking-wide text-neutral-100">
-              AI Tutor Overlay
-            </span>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-neutral-700 bg-neutral-800/80 text-sky-300">
-              {hotkeyInfo.shortcut}
-            </span>
+
+            <div className="flex flex-col">
+              <span className="text-[11px] font-bold tracking-widest text-cyan-300 jarvis-text-glow">
+                JARVIS // OVERLAY HUD
+              </span>
+              <span className="text-[8px] text-cyan-500/80 tracking-wider">
+                TACTICAL TUTOR ENGINE v1.0
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1">
-            <GripHorizontal className="w-3.5 h-3.5 text-neutral-500 mr-1" />
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] px-1.5 py-0.5 rounded border border-cyan-500/40 bg-cyan-950/40 text-cyan-300 font-mono">
+              {hotkeyInfo.shortcut}
+            </span>
+
+            <GripHorizontal className="w-3.5 h-3.5 text-cyan-500/60" />
+
             <button
               onClick={() => setShowSettings(!showSettings)}
-              className={`p-1 rounded-lg transition-colors ${
+              className={`p-1 rounded-md transition-colors ${
                 showSettings
-                  ? "bg-neutral-800 text-sky-400"
-                  : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60"
+                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/50"
+                  : "text-cyan-400/70 hover:text-cyan-200 hover:bg-cyan-950/60"
               }`}
-              title="Settings (API Key & Model)"
+              title="Tactical AI Settings & API Keys"
             >
               <Settings className="w-3.5 h-3.5" />
             </button>
+
             <button
               onClick={handleDismiss}
-              className="p-1 rounded-lg text-neutral-400 hover:text-neutral-100 hover:bg-neutral-800/60 transition-colors"
-              title="Dismiss (Esc)"
+              className="p-1 rounded-md text-cyan-400/70 hover:text-rose-300 hover:bg-rose-950/40 transition-colors"
+              title="Dismiss Interface (Esc)"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
-        {/* Hotkey Collision Alert (ADR-008) */}
+        {/* Telemetry Status Bar */}
+        <div className="px-3.5 py-1.5 border-b border-cyan-500/20 flex items-center justify-between text-[10px] bg-[#030914]/60">
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5">
+              <Radio
+                className={`w-3 h-3 ${
+                  state === "thinking"
+                    ? "text-cyan-400 animate-spin"
+                    : state === "capturing"
+                    ? "text-amber-400 animate-pulse"
+                    : state === "ready"
+                    ? "text-emerald-400"
+                    : "text-cyan-500"
+                }`}
+              />
+              <span className="text-cyan-400 font-medium tracking-wider">
+                {state === "idle" && "SYS.STANDBY"}
+                {state === "capturing" && "ACQUIRING.SCREEN"}
+                {state === "thinking" && "NEURAL.PROCESSING"}
+                {state === "ready" && "TELEMETRY.READY"}
+                {state === "error" && "UPLINK.FAULT"}
+              </span>
+            </div>
+
+            {/* Jarvis Spectral Audio / Frequency Waves */}
+            {(state === "thinking" || state === "ready") && (
+              <div className="flex items-end gap-0.5 h-3">
+                <span className="w-0.5 h-full bg-cyan-400 animate-pulse" />
+                <span className="w-0.5 h-2/3 bg-cyan-400 animate-bounce" />
+                <span className="w-0.5 h-4/5 bg-cyan-300 animate-pulse" />
+                <span className="w-0.5 h-1/2 bg-cyan-400 animate-bounce" />
+                <span className="w-0.5 h-full bg-cyan-400 animate-pulse" />
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] text-cyan-600 font-mono">
+              LATENCY: 14MS
+            </span>
+            <button
+              onClick={() => handleTrigger()}
+              disabled={state === "capturing" || state === "thinking"}
+              className="px-2 py-0.5 rounded border border-cyan-500/40 bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 flex items-center gap-1 transition-all disabled:opacity-40"
+              title="Rescan Screen (Alt+T)"
+            >
+              <RotateCcw className="w-2.5 h-2.5" />
+              <span>RESCAN</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Hotkey Conflict Notification */}
         {!hotkeyInfo.registered && (
-          <div className="px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/30 flex items-center gap-2 text-[11px] text-amber-300">
+          <div className="px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/30 flex items-center gap-2 text-[10px] text-amber-300">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
             <span className="truncate">
-              Hotkey {hotkeyInfo.shortcut} collision. Use manual trigger buttons below.
+              GLOBAL SHORTCUT {hotkeyInfo.shortcut} OVERRIDDEN BY OS. USE SCAN BUTTONS.
             </span>
           </div>
         )}
 
         {/* Settings Drawer */}
         {showSettings && (
-          <div className="p-3 border-b border-neutral-800 bg-neutral-900/90 text-xs space-y-2.5">
-            <div className="flex items-center justify-between text-neutral-300 font-medium">
+          <div className="p-3 border-b border-cyan-500/30 bg-[#061226]/95 text-xs space-y-2.5">
+            <div className="flex items-center justify-between text-cyan-300 font-bold tracking-wide">
               <span className="flex items-center gap-1.5">
-                <Key className="w-3.5 h-3.5 text-sky-400" />
-                Vision AI Configuration
+                <Key className="w-3.5 h-3.5 text-cyan-400" />
+                AI PROTOCOL & API CONFIGURATION
               </span>
               <button
                 onClick={() => setShowSettings(false)}
-                className="text-[10px] text-neutral-400 hover:text-neutral-200"
+                className="text-[10px] text-cyan-500 hover:text-cyan-300"
               >
-                Close
+                [ CLOSE ]
               </button>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] text-neutral-400 block mb-1">
-                  Provider
+                <label className="text-[9px] text-cyan-400/80 block mb-1">
+                  AI PROVIDER
                 </label>
                 <select
                   value={settings.provider}
@@ -499,16 +633,16 @@ export default function App() {
                       model: prov === "gemini" ? "gemini-1.5-flash" : "gpt-4o-mini",
                     });
                   }}
-                  className="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-xs text-neutral-100 outline-none"
+                  className="w-full bg-[#030914] border border-cyan-500/40 rounded px-2 py-1 text-xs text-cyan-200 outline-none focus:border-cyan-400"
                 >
-                  <option value="gemini">Google Gemini</option>
+                  <option value="gemini">Google Gemini (Recommended)</option>
                   <option value="openai">OpenAI / Compatible</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-[10px] text-neutral-400 block mb-1">
-                  Model
+                <label className="text-[9px] text-cyan-400/80 block mb-1">
+                  VISION MODEL
                 </label>
                 <input
                   type="text"
@@ -519,121 +653,109 @@ export default function App() {
                       ? "gemini-1.5-flash"
                       : "gpt-4o-mini"
                   }
-                  className="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-xs text-neutral-100 outline-none"
+                  className="w-full bg-[#030914] border border-cyan-500/40 rounded px-2 py-1 text-xs text-cyan-200 outline-none focus:border-cyan-400"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-[10px] text-neutral-400 block mb-1">
-                API Key
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[9px] text-cyan-400/80 block">
+                  API KEY {settings.provider === "gemini" && "(Google AI Studio)"}
+                </label>
+                {settings.provider === "gemini" && (
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[9px] text-cyan-400 hover:text-cyan-200 flex items-center gap-0.5 underline"
+                  >
+                    <span>Get Free Gemini Key</span>
+                    <ExternalLink className="w-2.5 h-2.5" />
+                  </a>
+                )}
+              </div>
               <input
                 type="password"
                 value={settings.apiKey}
                 onChange={(e) => updateSettings({ apiKey: e.target.value })}
-                placeholder="Paste Gemini (AIza...) or OpenAI (sk-...) API key"
-                className="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-xs text-neutral-100 outline-none focus:border-sky-500"
+                placeholder="Paste key (AIza... or sk-...) or leave blank to test simulated stream"
+                className="w-full bg-[#030914] border border-cyan-500/40 rounded px-2 py-1 text-xs text-cyan-200 outline-none focus:border-cyan-400"
               />
+              <p className="text-[9px] text-cyan-600 mt-1">
+                Leave blank to test full simulated Jarvis responses without any key.
+              </p>
             </div>
           </div>
         )}
 
-        {/* Status Bar & Quick Actions */}
-        <div className="px-3.5 py-1.5 border-b border-neutral-800/60 flex items-center justify-between text-xs bg-neutral-900/30">
-          <div className="flex items-center gap-2">
-            <span
-              className={`w-2 h-2 rounded-full transition-colors ${
-                state === "capturing"
-                  ? "bg-amber-400 animate-pulse"
-                  : state === "thinking"
-                  ? "bg-sky-400 animate-ping"
-                  : state === "ready"
-                  ? "bg-emerald-400"
-                  : state === "error"
-                  ? "bg-rose-400"
-                  : "bg-neutral-500"
-              }`}
-            />
-            <span className="text-[11px] font-medium text-neutral-300">
-              {state === "idle" && "Ready (Alt+T)"}
-              {state === "capturing" && "Capturing window..."}
-              {state === "thinking" && "Vision AI thinking..."}
-              {state === "ready" && "Explanation ready"}
-              {state === "error" && "Error occurred"}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => handleTrigger()}
-              disabled={state === "capturing" || state === "thinking"}
-              className="px-2 py-1 rounded text-[11px] font-medium bg-neutral-800 hover:bg-neutral-700 text-neutral-200 flex items-center gap-1 transition-colors disabled:opacity-50"
-              title="Retake capture (Alt+T)"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>Retake</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Quick Topic Chips */}
+        {/* Tactical Quick Action Chips */}
         {state !== "capturing" && (
-          <div className="px-3 py-1.5 border-b border-neutral-800/40 flex items-center gap-1.5 overflow-x-auto text-[10px] scrollbar-none">
+          <div className="px-3 py-1.5 border-b border-cyan-500/20 flex items-center gap-1.5 overflow-x-auto text-[9px] bg-[#020710]/40 scrollbar-none">
             <button
-              onClick={() => handleTrigger("Explain this concept in simple bullet points.")}
-              className="shrink-0 px-2 py-0.5 rounded-full border border-neutral-800 bg-neutral-900/80 hover:bg-neutral-800 text-neutral-300 flex items-center gap-1 transition-colors"
+              onClick={() => handleTrigger("JARVIS, deliver a deep concept breakdown of this viewport in clear tactical bullets.")}
+              className="shrink-0 px-2 py-0.5 rounded border border-cyan-500/40 bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 flex items-center gap-1 transition-all"
             >
-              <HelpCircle className="w-2.5 h-2.5 text-sky-400" />
-              Explain Concept
+              <Zap className="w-2.5 h-2.5 text-cyan-400" />
+              DEEP RECON
             </button>
             <button
-              onClick={() => handleTrigger("Find bugs, errors, or issues in this view.")}
-              className="shrink-0 px-2 py-0.5 rounded-full border border-neutral-800 bg-neutral-900/80 hover:bg-neutral-800 text-neutral-300 flex items-center gap-1 transition-colors"
+              onClick={() => handleTrigger("JARVIS, diagnose any code bugs, logic flaws, or errors in this frame.")}
+              className="shrink-0 px-2 py-0.5 rounded border border-rose-500/40 bg-rose-950/30 hover:bg-rose-900/50 text-rose-300 flex items-center gap-1 transition-all"
             >
-              <Bug className="w-2.5 h-2.5 text-rose-400" />
-              Find Bug / Error
+              <Terminal className="w-2.5 h-2.5 text-rose-400" />
+              DEBUG FAULT
             </button>
             <button
-              onClick={() => handleTrigger("Summarize the main takeaways clearly.")}
-              className="shrink-0 px-2 py-0.5 rounded-full border border-neutral-800 bg-neutral-900/80 hover:bg-neutral-800 text-neutral-300 flex items-center gap-1 transition-colors"
+              onClick={() => handleTrigger("JARVIS, provide an executive summary of the crucial highlights.")}
+              className="shrink-0 px-2 py-0.5 rounded border border-emerald-500/40 bg-emerald-950/30 hover:bg-emerald-900/50 text-emerald-300 flex items-center gap-1 transition-all"
             >
-              <BookOpen className="w-2.5 h-2.5 text-emerald-400" />
-              Summarize
+              <Activity className="w-2.5 h-2.5 text-emerald-400" />
+              TACTICAL BRIEF
             </button>
           </div>
         )}
 
-        {/* Content & Messages Area */}
-        <div className="p-3.5 overflow-y-auto max-h-[320px] text-xs leading-relaxed text-neutral-200 space-y-3 select-text">
+        {/* Content Area */}
+        <div className="p-3.5 overflow-y-auto max-h-[300px] text-xs leading-relaxed text-cyan-100/90 space-y-3 select-text">
           {errorMessage && (
-            <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 flex items-start gap-2">
+            <div className="p-2.5 rounded border border-rose-500/50 bg-rose-950/40 text-rose-300 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
-              <div className="text-[11px] leading-normal">{errorMessage}</div>
+              <div className="text-[11px] leading-normal font-mono">{errorMessage}</div>
             </div>
           )}
 
-          {/* Empty / Idle State */}
+          {/* Idle / Arc Reactor Hologram */}
           {state === "idle" && messages.length === 0 && !currentStreamingText && !errorMessage && (
-            <div className="py-6 flex flex-col items-center justify-center text-center space-y-3">
-              <div className="p-3 rounded-2xl bg-neutral-900/90 border border-neutral-800 text-neutral-400 shadow-inner">
-                <Camera className="w-6 h-6 text-sky-400" />
+            <div className="py-6 flex flex-col items-center justify-center text-center space-y-4">
+              {/* Rotating Arc Reactor Graphic */}
+              <div className="relative flex items-center justify-center w-24 h-24 my-1">
+                {/* Outer dashed ring */}
+                <div className="absolute inset-0 rounded-full border-2 border-cyan-400/40 border-dashed animate-spin-slow" />
+                {/* Middle reverse ring */}
+                <div className="absolute inset-2 rounded-full border border-cyan-300/30 border-t-transparent animate-spin-reverse" />
+                {/* Inner glowing core */}
+                <div className="w-12 h-12 rounded-full bg-cyan-400/10 border border-cyan-300 flex items-center justify-center shadow-[0_0_20px_#00F0FF] animate-pulse-core">
+                  <Cpu className="w-6 h-6 text-cyan-300" />
+                </div>
               </div>
+
               <div>
-                <p className="text-neutral-200 font-medium text-xs">
-                  Press <kbd className="px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 font-mono text-[11px] text-sky-300">Alt + T</kbd>
+                <p className="text-cyan-200 font-bold tracking-widest text-xs jarvis-text-glow">
+                  JARVIS TACTICAL TUTOR READY
                 </p>
-                <p className="text-[11px] text-neutral-400 mt-1 max-w-[280px]">
-                  Captures active window & delivers an instant tutor breakdown.
+                <p className="text-[11px] text-cyan-500/90 mt-1 max-w-[280px]">
+                  Press <kbd className="px-1.5 py-0.5 rounded bg-cyan-950 border border-cyan-500 font-mono text-[10px] text-cyan-300">Alt + T</kbd> to analyze active window
                 </p>
               </div>
 
               <div className="flex items-center gap-2 pt-1">
                 <button
                   onClick={() => handleTrigger()}
-                  className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-medium text-xs shadow-md shadow-sky-600/20 transition-all"
+                  className="px-3.5 py-1.5 rounded border border-cyan-400 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 font-bold text-xs shadow-[0_0_15px_rgba(0,240,255,0.3)] transition-all flex items-center gap-1.5"
                 >
-                  Capture Active Window
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>INITIALIZE SCAN</span>
                 </button>
 
                 {!isTauri && (
@@ -647,11 +769,11 @@ export default function App() {
                     />
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-2.5 py-1.5 rounded-lg border border-neutral-700 bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 text-xs flex items-center gap-1 transition-colors"
-                      title="Upload test screenshot (or Ctrl+V to paste)"
+                      className="px-2.5 py-1.5 rounded border border-cyan-500/30 bg-[#061226] hover:bg-cyan-900/40 text-cyan-400 text-xs flex items-center gap-1 transition-all"
+                      title="Load test screenshot or press Ctrl+V"
                     >
                       <Upload className="w-3 h-3" />
-                      <span>Test Image</span>
+                      <span>UPLOAD FRAME</span>
                     </button>
                   </>
                 )}
@@ -659,34 +781,38 @@ export default function App() {
             </div>
           )}
 
-          {/* Thinking / Spinner State */}
+          {/* Thinking / Neural Processing State */}
           {state === "thinking" && !currentStreamingText && messages.length === 0 && (
-            <div className="py-8 flex flex-col items-center justify-center space-y-3 text-neutral-400">
-              <div className="w-6 h-6 border-2 border-sky-400/30 border-t-sky-400 rounded-full animate-spin" />
-              <p className="text-[11px] text-neutral-300 animate-pulse">
-                Analyzing screen with vision AI...
+            <div className="py-8 flex flex-col items-center justify-center space-y-3">
+              <div className="relative flex items-center justify-center w-14 h-14">
+                <div className="absolute inset-0 rounded-full border-2 border-cyan-400/50 border-t-transparent animate-spin" />
+                <div className="w-7 h-7 rounded-full bg-cyan-400/20 border border-cyan-300 shadow-[0_0_15px_#00F0FF] animate-pulse" />
+              </div>
+              <p className="text-[11px] text-cyan-300 tracking-wider animate-pulse jarvis-text-glow">
+                PROCESSING VISUAL TELEMETRY...
               </p>
             </div>
           )}
 
-          {/* Multi-turn Messages Thread */}
+          {/* Dialogue Thread */}
           {messages.map((msg, idx) => (
             <div
               key={idx}
-              className={`rounded-xl p-3 text-xs ${
+              className={`rounded-lg p-3 text-xs border ${
                 msg.role === "user"
-                  ? "bg-sky-950/40 border border-sky-800/40 text-sky-100 ml-6"
-                  : "bg-neutral-900/60 border border-neutral-800/60 text-neutral-200"
+                  ? "bg-[#091B33]/80 border-cyan-500/40 text-cyan-200 ml-6"
+                  : "bg-[#051020]/90 border-cyan-500/20 text-cyan-100"
               }`}
             >
-              <div className="flex items-center justify-between mb-1 text-[10px] text-neutral-400">
-                <span className="font-semibold uppercase tracking-wider text-sky-400">
-                  {msg.role === "user" ? "You" : "Tutor"}
+              <div className="flex items-center justify-between mb-1.5 text-[9px] text-cyan-500 border-b border-cyan-500/20 pb-1">
+                <span className="font-bold uppercase tracking-widest text-cyan-300 flex items-center gap-1">
+                  <Shield className="w-2.5 h-2.5" />
+                  {msg.role === "user" ? "OPERATOR" : "JARVIS"}
                 </span>
-                {msg.role === "tutor" && (
+                {msg.role === "jarvis" && (
                   <button
                     onClick={() => handleCopy(msg.content, idx)}
-                    className="hover:text-neutral-200 flex items-center gap-1 transition-colors"
+                    className="hover:text-cyan-200 flex items-center gap-1 transition-colors"
                   >
                     {copiedIndex === idx ? (
                       <Check className="w-3 h-3 text-emerald-400" />
@@ -696,7 +822,7 @@ export default function App() {
                   </button>
                 )}
               </div>
-              <div className="prose prose-invert prose-xs max-w-none leading-relaxed">
+              <div className="prose prose-invert prose-xs max-w-none leading-relaxed text-cyan-100/90">
                 <ReactMarkdown>{msg.content}</ReactMarkdown>
               </div>
             </div>
@@ -704,14 +830,14 @@ export default function App() {
 
           {/* Current Streaming Message */}
           {currentStreamingText && (
-            <div className="rounded-xl p-3 text-xs bg-neutral-900/60 border border-neutral-800/60 text-neutral-200">
-              <div className="flex items-center justify-between mb-1 text-[10px] text-neutral-400">
-                <span className="font-semibold uppercase tracking-wider text-sky-400 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping" />
-                  Tutor (Streaming...)
+            <div className="rounded-lg p-3 text-xs bg-[#051020]/90 border border-cyan-400/50 text-cyan-100">
+              <div className="flex items-center justify-between mb-1.5 text-[9px] text-cyan-400 border-b border-cyan-500/30 pb-1">
+                <span className="font-bold uppercase tracking-widest text-cyan-300 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+                  JARVIS // TRANSMITTING STREAM
                 </span>
               </div>
-              <div className="prose prose-invert prose-xs max-w-none leading-relaxed">
+              <div className="prose prose-invert prose-xs max-w-none leading-relaxed text-cyan-100/90">
                 <ReactMarkdown>{currentStreamingText}</ReactMarkdown>
               </div>
             </div>
@@ -720,8 +846,8 @@ export default function App() {
           <div ref={contentEndRef} />
         </div>
 
-        {/* Follow-up Question Input Form */}
-        <div className="p-2.5 border-t border-neutral-800/80 bg-neutral-900/50">
+        {/* Input Console */}
+        <div className="p-2.5 border-t border-cyan-500/30 bg-[#040C1A]/90">
           <form onSubmit={handleFollowUpSubmit} className="flex items-center gap-1.5">
             <input
               type="text"
@@ -729,17 +855,17 @@ export default function App() {
               onChange={(e) => setFollowUp(e.target.value)}
               placeholder={
                 state === "thinking"
-                  ? "Tutor is answering..."
-                  : "Ask a follow-up question... (Enter)"
+                  ? "JARVIS is computing..."
+                  : "Enter tactical directive or query... (Enter)"
               }
               disabled={state === "thinking" || state === "capturing"}
-              className="flex-1 bg-neutral-900/90 border border-neutral-700/80 rounded-lg px-2.5 py-1.5 text-xs text-neutral-100 placeholder:text-neutral-500 outline-none focus:border-sky-500 transition-colors disabled:opacity-50"
+              className="flex-1 bg-[#020712] border border-cyan-500/40 rounded px-2.5 py-1.5 text-xs text-cyan-100 placeholder:text-cyan-600 outline-none focus:border-cyan-300 transition-colors disabled:opacity-50"
             />
             <button
               type="submit"
               disabled={!followUp.trim() || state === "thinking"}
-              className="p-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:hover:bg-sky-600 text-white transition-colors shadow-sm"
-              title="Send follow-up"
+              className="p-1.5 rounded border border-cyan-400 bg-cyan-500/30 hover:bg-cyan-500/50 disabled:opacity-30 text-cyan-100 transition-all shadow-[0_0_10px_rgba(0,240,255,0.2)]"
+              title="Transmit Query"
             >
               <Send className="w-3.5 h-3.5" />
             </button>

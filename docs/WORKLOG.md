@@ -78,3 +78,16 @@ One small note per change, newest last. If a change touched stack, capture, hotk
 - **Multi-turn Chat Thread:** Rendered conversation history with speaker bubbles, copy buttons, and interactive follow-ups.
 - **Vite Dev Server:** Started live daemon at `http://localhost:1420/` with verified production build passing in 10s.
 
+---
+
+## 2026-09-30 — Jarvis Tactical HUD Interface & Free Screen Dragging
+
+- **Free-Form Screen Dragging:** Replaced static bottom-right placement with a custom coordinate drag system that tracks pointer movements and clamps the HUD card smoothly anywhere across the entire browser viewport or desktop screen.
+- **Jarvis Holographic HUD Aesthetics:** Transformed the UI into an Iron Man / Jarvis inspired tactical HUD:
+  - Deep space-black translucent backdrop with cyan cyber-grid lines and ambient glow.
+  - Animated Arc Reactor Core graphic with rotating concentric dashed rings and pulsing central sphere.
+  - Tactical telemetry readout status indicators (`SYS.STANDBY`, `ACQUIRING.SCREEN`, `NEURAL.PROCESSING`, `TELEMETRY.READY`).
+  - Animated spectral audio/frequency visualizer bars that bounce during reasoning and streaming.
+  - Holographic reticle corner brackets and glowing command chips (`DEEP RECON`, `DEBUG FAULT`, `TACTICAL BRIEF`).
+- **Direct Gemini Key Integration:** Documented and linked Google AI Studio direct key generation in settings, clarifying that simulation mode works with zero keys required.
+
