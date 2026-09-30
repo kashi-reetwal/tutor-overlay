@@ -106,3 +106,8 @@ One small note per change, newest last. If a change touched stack, capture, hotk
   - Direct atomic vision queries with smooth holographic typewriter streaming into the JARVIS HUD.
   - Auto-fallback for visual telemetry: automatically provides sample IDE code frame if no screenshot has been captured or uploaded yet, ensuring Vision AI never fails on empty payload.
   - Connected client-side settings override to Tauri Rust IPC commands (`trigger_tutor`, `send_followup`).
+- **404 Model Auto-Recovery & Migration:**
+  - `gemini-1.5-pro` is restricted or deprecated on free-tier v1beta keys (causing 404 errors). Auto-migrated `localStorage` to `gemini-1.5-flash`.
+  - Added automatic fallback to `gemini-1.5-flash` in `runBrowserVisionAI`, `handleTestConnection`, and `handleFollowUpSubmit` if Google returns 404.
+  - Updated presets in Settings to verified Free Tier models: `[ 1.5-flash (Standard) ]`, `[ 2.0-flash (New) ]`, `[ 1.5-8b (Fast) ]`.
+  - Added 1-click `[ ⚡ SWITCH TO GEMINI-1.5-FLASH & RETRY ]` recovery button directly inside HUD error alerts.

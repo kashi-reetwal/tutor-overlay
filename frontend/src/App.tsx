@@ -156,7 +156,16 @@ export default function App() {
   const [settings, setSettings] = useState<UserSettings>(() => {
     try {
       const saved = localStorage.getItem("tutor_settings");
-      return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Auto-migrate from deprecated gemini-1.5-pro to free-tier gemini-1.5-flash
+        if (parsed.model === "gemini-1.5-pro") {
+          parsed.model = "gemini-1.5-flash";
+          localStorage.setItem("tutor_settings", JSON.stringify(parsed));
+        }
+        return parsed;
+      }
+      return DEFAULT_SETTINGS;
     } catch {
       return DEFAULT_SETTINGS;
     }
@@ -253,13 +262,37 @@ export default function App() {
     try {
       if (settings.provider === "gemini") {
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${cleanApiKey}`;
-        const res = await fetch(endpoint, {
+        let res = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ role: "user", parts: [{ text: "Ping. Reply with: ONLINE" }] }],
           }),
         });
+
+        if (res.status === 404 && cleanModel !== "gemini-1.5-flash") {
+          // Automatic recovery: Fallback to gemini-1.5-flash
+          const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanApiKey}`;
+          const fallbackRes = await fetch(fallbackEndpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: "Ping. Reply with: ONLINE" }] }],
+            }),
+          });
+
+          if (fallbackRes.ok) {
+            updateSettings({ model: "gemini-1.5-flash" });
+            const data = await fallbackRes.json();
+            const reply = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "ONLINE";
+            setTestConnectionStatus({
+              testing: false,
+              success: true,
+              message: `'${cleanModel}' unavailable; auto-switched to gemini-1.5-flash: "${reply}"`,
+            });
+            return;
+          }
+        }
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
@@ -471,13 +504,26 @@ User Query: ${prompt}`,
         }
 
         const directEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${cleanApiKey}`;
-        const res = await fetch(directEndpoint, {
+        let res = await fetch(directEndpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ role: "user", parts }],
           }),
         });
+
+        // Automatic fallback on 404 (e.g. if gemini-1.5-pro is unavailable on free tier)
+        if (res.status === 404 && cleanModel !== "gemini-1.5-flash") {
+          updateSettings({ model: "gemini-1.5-flash" });
+          const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanApiKey}`;
+          res = await fetch(fallbackEndpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts }],
+            }),
+          });
+        }
 
         if (!res.ok) {
           const errJson = await res.json().catch(() => ({}));
@@ -486,7 +532,7 @@ User Query: ${prompt}`,
           if (res.status === 400 && errMsg.includes("API key not valid")) {
             friendly = "Invalid Gemini API Key. Click Settings (⚙️) to update your key from Google AI Studio.";
           } else if (res.status === 404) {
-            friendly = `Model '${cleanModel}' not found. Click Settings (⚙️) and select 'gemini-1.5-flash'.`;
+            friendly = `Model '${cleanModel}' not found. Select 'gemini-1.5-flash' in Settings.`;
           } else if (res.status === 429) {
             friendly = "Gemini API Quota exceeded. Please wait a moment before trying again.";
           }
@@ -652,11 +698,21 @@ User Query: ${prompt}`,
 
             contents.push({ role: "user", parts: [{ text: query }] });
 
-            const res = await fetch(endpoint, {
+            let res = await fetch(endpoint, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ contents }),
             });
+
+            if (res.status === 404 && cleanModel !== "gemini-1.5-flash") {
+              updateSettings({ model: "gemini-1.5-flash" });
+              const fallbackEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanApiKey}`;
+              res = await fetch(fallbackEndpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contents }),
+              });
+            }
 
             if (!res.ok) {
               const errJson = await res.json().catch(() => ({}));
@@ -929,19 +985,23 @@ User Query: ${prompt}`,
                 />
                 {settings.provider === "gemini" && (
                   <div className="flex items-center gap-1.5 mt-1.5">
-                    <span className="text-[8px] text-cyan-500/80">PRESETS:</span>
-                    {["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"].map((m) => (
+                    <span className="text-[8px] text-cyan-500/80">FREE TIER:</span>
+                    {[
+                      { id: "gemini-1.5-flash", label: "1.5-flash (Standard)" },
+                      { id: "gemini-2.0-flash", label: "2.0-flash (New)" },
+                      { id: "gemini-1.5-flash-8b", label: "1.5-8b (Fast)" },
+                    ].map((m) => (
                       <button
-                        key={m}
+                        key={m.id}
                         type="button"
-                        onClick={() => updateSettings({ model: m })}
+                        onClick={() => updateSettings({ model: m.id })}
                         className={`text-[8px] px-1.5 py-0.5 rounded border transition-colors ${
-                          settings.model === m
-                            ? "border-cyan-400 bg-cyan-900/60 text-cyan-200"
+                          settings.model === m.id
+                            ? "border-cyan-400 bg-cyan-900/60 text-cyan-200 font-bold"
                             : "border-cyan-500/30 bg-[#020712] hover:border-cyan-400/50 text-cyan-400"
                         }`}
                       >
-                        {m.replace("gemini-", "")}
+                        {m.label}
                       </button>
                     ))}
                   </div>
@@ -1045,9 +1105,24 @@ User Query: ${prompt}`,
         {/* Content Area */}
         <div className="p-3.5 overflow-y-auto max-h-[300px] text-xs leading-relaxed text-cyan-100/90 space-y-3 select-text">
           {errorMessage && (
-            <div className="p-2.5 rounded border border-rose-500/50 bg-rose-950/40 text-rose-300 flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
-              <div className="text-[11px] leading-normal font-mono">{errorMessage}</div>
+            <div className="p-2.5 rounded border border-rose-500/50 bg-rose-950/40 text-rose-300 flex flex-col gap-2">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+                <div className="text-[11px] leading-normal font-mono">{errorMessage}</div>
+              </div>
+              {(errorMessage.includes("not found") || errorMessage.includes("1.5-pro")) && (
+                <button
+                  onClick={() => {
+                    updateSettings({ model: "gemini-1.5-flash" });
+                    setErrorMessage(null);
+                    handleTrigger();
+                  }}
+                  className="self-start px-2.5 py-1 rounded bg-cyan-900/70 border border-cyan-400 text-cyan-200 text-[10px] hover:bg-cyan-800 transition-all font-bold flex items-center gap-1.5 shadow-[0_0_10px_rgba(0,240,255,0.3)]"
+                >
+                  <Zap className="w-3 h-3 text-cyan-300" />
+                  <span>SWITCH TO GEMINI-1.5-FLASH & RETRY</span>
+                </button>
+              )}
             </div>
           )}
 
