@@ -26,6 +26,7 @@ Thumbs.db
 .env.production
 *.pem
 *.key
+*.git-credentials
 
 # Logs
 *.log

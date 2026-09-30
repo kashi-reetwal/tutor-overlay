@@ -44,3 +44,16 @@ One small note per change, newest last. If a change touched stack, capture, hotk
 - Added a minimal valid 1x1 transparent PNG placeholder at `tauri/icon.png` so Tauri does not fail icon validation early.
 - Updated `docs/TECHSTACK.md` and `docs/WORKLOG.md` to reflect the new layout.
 - Still not runnable here yet: there is no Rust toolchain available in this environment, so `tauri dev` cannot be verified from here. Next step after this is done is to confirm the toolchain and run the app.
+
+---
+
+## 2026-09-30 — Implemented Rust backend, Windows screen capture, AI vision streaming, and UI wiring
+
+- **Crates & Workspace:** Added `tokio`, `reqwest` (with streaming + json), `futures-util`, `image`, `base64`, `dotenvy`, and `windows` (Win32 GDI & UI) to `Cargo.toml`.
+- **Global Hotkey:** Configured `tauri-plugin-global-shortcut` in `src-tauri/src/lib.rs` for `Alt+T`. Added ADR-008 graceful registration verification, emitting status to frontend.
+- **Windows Capture (`src-tauri/src/capture/mod.rs`):** Implemented native Windows foreground window capture via `GetForegroundWindow` + `GetWindowRect` + GDI `BitBlt` with `CAPTUREBLT` for hardware-accelerated/layered windows. Added fallback to fullscreen virtual monitor capture (ADR-005). Added image downscaling (max 1280px maintaining aspect ratio) and JPEG encoding to keep latency and vision token cost minimal (ADR-006).
+- **AI Streaming Pipeline (`src-tauri/src/ai/mod.rs`):** Implemented streaming vision tutor queries for OpenAI-compatible and Google Gemini models. Automatically reads `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, and `AI_BASE_URL` from `.env` or `.env.local`. Emits real-time tokens to frontend via `tutor:stream_chunk` and `tutor:stream_end`.
+- **Tauri IPC Commands (`src-tauri/src/commands/mod.rs`):** Added `get_hotkey_status`, `trigger_tutor`, `send_followup`, `set_card_visible`, and `dismiss_card`.
+- **Frontend Overlay (`frontend/src/App.tsx`):** Built interactive floating card UI with glassmorphic styling, drag handle (`data-tauri-drag-region`), hotkey status alert banner, streaming text auto-scroll, follow-up form, and quick dismiss (`Esc`). Added browser preview fallback so frontend can be developed standalone with Vite.
+- **Build Verification:** Added `@tailwindcss/vite`, updated `vite.config.ts`, installed npm packages, and verified production frontend build (`npm run build`) passes cleanly.
+
