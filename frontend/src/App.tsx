@@ -19,8 +19,12 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
-  FileText,
   Camera,
+  Lightbulb,
+  Cpu,
+  Layers,
+  ShieldAlert,
+  BookOpen,
 } from "lucide-react";
 
 type CardState = "idle" | "capturing" | "thinking" | "ready" | "error";
@@ -50,6 +54,11 @@ interface ParsedQuizAnswer {
   confidence?: string;
   why: string;
   raw: string;
+  intuition?: string;
+  coreRule?: string;
+  comparison?: string;
+  pitfall?: string;
+  cheatSheet?: string[];
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -84,7 +93,7 @@ async function compressImageForVision(dataUrl: string): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
-      const maxDim = 1280;
+      const maxDim = 1440;
       let w = img.width;
       let h = img.height;
       if (w > maxDim || h > maxDim) {
@@ -102,7 +111,7 @@ async function compressImageForVision(dataUrl: string): Promise<string> {
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", 0.75));
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
       } else {
         resolve(dataUrl);
       }
@@ -112,45 +121,61 @@ async function compressImageForVision(dataUrl: string): Promise<string> {
   });
 }
 
-// Generate uniform prompt for both Tauri native capture and browser preview
+// Generate uniform Socratic visual teacher prompt
 function getSolverPrompt(mode: "quiz" | "code" | "summary", customPrompt?: string): string {
   let basePrompt = "";
   if (mode === "quiz") {
-    basePrompt = `You are an ultra-fast, high-precision AI Exam & Quiz Solver.
+    basePrompt = `You are a World-Class Master Exam Professor and Tutor using the Feynman visual learning method.
 Examine this screen capture. Identify the active question and multiple-choice options (A, B, C, D, etc.).
-Determine the single correct winning option with absolute certainty.
+Determine the winning correct option with certainty.
 
-YOU MUST STRICTLY RESPOND IN EXACTLY THIS 4-LINE FORMAT (DO NOT ADD EXTRA TEXT, MARKDOWN QUOTES, OR COMMENTARY):
-OPTION: (A)
-TEXT: [Winning option text without repeating letter or quotes]
+CRITICAL INSTRUCTION: STRICTLY FORBIDDEN FROM OUTPUTTING DENSE ESSAYS OR "BRAIN-ROT" TEXT DUMPS.
+Students hate reading walls of text. Structure your entire output into these exact visual boxes:
+
+OPTION: (B)
+TEXT: [Winning option text without surrounding quotes or repeated letter]
 CONFIDENCE: 98%
-WHY: [1 concise sentence explaining why this option is correct]
+WHY: [1 concise, punchy sentence explaining the direct proof]
 
-CRITICAL RULES:
-1. "OPTION:" MUST strictly be the option letter in parentheses, e.g. (A), (B), (C), (D), or (E). Never write "DIRECT ANSWER" or full sentences in OPTION.
-2. "TEXT:" must be the option text without repeating the letter or surrounding quotes.
-3. "CONFIDENCE:" must strictly be a percentage like 95% or 99% without commentary or parentheses.
-4. "WHY:" must be 1 clear, punchy sentence explaining the rationale.`;
+BOX_INTUITION: [A vivid real-world metaphor or mental picture in 1-2 sentences making the concept instantly click. E.g. "Think of flipping to the exact middle of a dictionary..."]
+BOX_CORE_RULE: [The exact mathematical formula, algorithm law, or scientific mechanism governing this]
+BOX_COMPARISON: [A sharp bulleted comparison contrasting the winning option against the incorrect options (e.g. why A, C, D are flawed)]
+BOX_EXAM_TRAP: [The exact trick or misconception examiners designed into this question to bait students]
+BOX_CHEAT_SHEET: [3 high-yield bullet points to memorize for exams]`;
   } else if (mode === "code") {
-    basePrompt = `You are an instant AI Code Debugger. Inspect the visible code for errors or bugs.
-YOU MUST RESPOND IN THIS EXACT 4-LINE FORMAT:
-OPTION: [BUG LOCATION / LINE]
-TEXT: [Exact code fix]
-CONFIDENCE: 95%
-WHY: [1 concise sentence explaining the cause and fix]`;
+    basePrompt = `You are an elite Senior Staff Engineer and Teacher. Inspect the screen code for bugs, errors, and logic traps.
+DO NOT OUTPUT UNSTRUCTURED DENSE TEXT. Structure your output into these exact visual cards:
+
+OPTION: LINE [X] FIX
+TEXT: [Exact 1-line code replacement]
+CONFIDENCE: 98%
+WHY: [1 concise sentence explaining the root cause]
+
+BOX_INTUITION: [Plain English explanation of why the bug occurs]
+BOX_CORE_RULE: [Underlying language specification, memory model, or typing rule violated]
+BOX_COMPARISON: [Before vs After code comparison block]
+BOX_EXAM_TRAP: [Subtle edge-cases that lead to silent failure or memory leaks]
+BOX_CHEAT_SHEET: [3 best practices to prevent this class of bug]`;
   } else {
-    basePrompt = `You are a concise AI Tutor. Summarize what is on screen.
-YOU MUST RESPOND IN THIS EXACT 4-LINE FORMAT:
-OPTION: SUMMARY
-TEXT: [Core takeaway]
+    basePrompt = `You are a Master Professor creating visual revision cards.
+DO NOT OUTPUT DENSE TEXT WALLS OR ESSAY SUMMARIES. Break down the screen concepts into high-impact visual cards:
+
+OPTION: CORE TAKEAWAY
+TEXT: [1 punchy golden takeaway line]
 CONFIDENCE: 95%
-WHY: [Practical application or core concept]`;
+WHY: [The single most important practical insight]
+
+BOX_INTUITION: [A crystal-clear real-world analogy or mental model]
+BOX_CORE_RULE: [The foundational principle, theorem, or mechanism]
+BOX_COMPARISON: [Key distinctions / Pros vs Cons table or bullets]
+BOX_EXAM_TRAP: [Common misconceptions and what students get wrong]
+BOX_CHEAT_SHEET: [3 rapid bullet points summarizing the entire concept for quick review]`;
   }
 
-  return customPrompt ? `${basePrompt}\nUser Follow-up: ${customPrompt}` : basePrompt;
+  return customPrompt ? `${basePrompt}\n\nSTUDENT QUESTION (Answer in visual concept boxes, NOT long text): ${customPrompt}` : basePrompt;
 }
 
-// Parse AI output into structured instant quiz answer format with robust heuristics
+// Parse AI output into structured instant quiz answer format with visual concept cards
 function parseQuizResponse(fullText: string): ParsedQuizAnswer {
   if (!fullText) {
     return { option: "", text: "", why: "", raw: "" };
@@ -184,7 +209,6 @@ function parseQuizResponse(fullText: string): ParsedQuizAnswer {
   let option = "";
   let detectedLetter: string | null = null;
 
-  // Check if rawOption is a letter or contains (A)/(B)/(C)/(D)/(E)
   const optionLetterMatch =
     rawOption.match(/\(([A-E])\)/i) ||
     rawOption.match(/^\(?([A-E])\)?$/i) ||
@@ -194,7 +218,6 @@ function parseQuizResponse(fullText: string): ParsedQuizAnswer {
     detectedLetter = optionLetterMatch[1].toUpperCase();
   }
 
-  // If rawOption was "DIRECT ANSWER" or something generic, check rawText or fullText
   if (!detectedLetter || rawOption.toUpperCase().includes("DIRECT ANSWER")) {
     const textLetterMatch =
       rawText.match(/\(([A-E])\)/i) ||
@@ -209,13 +232,11 @@ function parseQuizResponse(fullText: string): ParsedQuizAnswer {
 
   if (detectedLetter) {
     option = `(${detectedLetter})`;
-    // Strip leading option letter from text so it doesn't repeat next to the badge
     const prefixRegex = new RegExp(`^\\(?${detectedLetter}\\)?[\\.\\:\\-\\)\\s]*`, "i");
     rawText = cleanValue(rawText.replace(prefixRegex, ""));
   } else if (rawOption && !rawOption.toUpperCase().includes("DIRECT ANSWER")) {
     option = rawOption;
   } else {
-    // Check fallback for any letter in the full text
     const genericLetterMatch =
       fullText.match(/\(([A-E])\)/i) ||
       fullText.match(/\b([A-E])[\.\)]\s/i);
@@ -237,12 +258,12 @@ function parseQuizResponse(fullText: string): ParsedQuizAnswer {
           l.length > 0 &&
           !l.toUpperCase().startsWith("OPTION:") &&
           !l.toUpperCase().startsWith("CONFIDENCE:") &&
-          !l.toUpperCase().startsWith("WHY:")
+          !l.toUpperCase().startsWith("WHY:") &&
+          !l.toUpperCase().startsWith("BOX_")
       );
     text = cleanLines[0] || "Correct option identified.";
   }
 
-  // Further strip any remaining leading quotes or duplicated (A)/(B) from text
   text = text.replace(/^["'`\s]+|["'`\s]+$/g, "");
   if (detectedLetter) {
     const prefixRegex = new RegExp(`^\\(?${detectedLetter}\\)?[\\.\\:\\-\\)\\s]*`, "i");
@@ -263,14 +284,48 @@ function parseQuizResponse(fullText: string): ParsedQuizAnswer {
           !l.toUpperCase().startsWith("OPTION:") &&
           !l.toUpperCase().startsWith("TEXT:") &&
           !l.toUpperCase().startsWith("CONFIDENCE:") &&
-          !l.toUpperCase().startsWith("WHY:")
+          !l.toUpperCase().startsWith("WHY:") &&
+          !l.toUpperCase().startsWith("BOX_")
       );
     if (cleanLines.length > 1) {
       why = cleanLines.slice(1).join(" ").slice(0, 200);
     }
   }
 
-  return { option, text, confidence, why, raw: fullText };
+  // 5. Extract Structured Pedagogical Boxes (Feynman Method)
+  const intuitionMatch = fullText.match(
+    /(?:BOX_INTUITION|INTUITION|MENTAL MODEL|ANALOGY):\s*([\s\S]*?)(?=(?:BOX_CORE_RULE|BOX_COMPARISON|BOX_EXAM_TRAP|BOX_CHEAT_SHEET|CORE RULE|RULE|COMPARISON|TRAP|CHEAT SHEET|$))/i
+  );
+  const intuition = cleanValue(intuitionMatch ? intuitionMatch[1] : "");
+
+  const ruleMatch = fullText.match(
+    /(?:BOX_CORE_RULE|CORE RULE|MECHANISM|FORMULA):\s*([\s\S]*?)(?=(?:BOX_COMPARISON|BOX_EXAM_TRAP|BOX_CHEAT_SHEET|COMPARISON|TRAP|CHEAT SHEET|$))/i
+  );
+  const coreRule = cleanValue(ruleMatch ? ruleMatch[1] : "");
+
+  const comparisonMatch = fullText.match(
+    /(?:BOX_COMPARISON|COMPARISON|WHY NOT OTHERS|OPTIONS BREAKDOWN):\s*([\s\S]*?)(?=(?:BOX_EXAM_TRAP|BOX_CHEAT_SHEET|TRAP|CHEAT SHEET|$))/i
+  );
+  const comparison = cleanValue(comparisonMatch ? comparisonMatch[1] : "");
+
+  const trapMatch = fullText.match(
+    /(?:BOX_EXAM_TRAP|EXAM TRAP|COMMON PITFALL|TRAP TO AVOID):\s*([\s\S]*?)(?=(?:BOX_CHEAT_SHEET|CHEAT SHEET|$))/i
+  );
+  const pitfall = cleanValue(trapMatch ? trapMatch[1] : "");
+
+  const cheatMatch = fullText.match(
+    /(?:BOX_CHEAT_SHEET|CHEAT SHEET|KEY TAKEAWAYS|SUMMARY POINTS):\s*([\s\S]*?)$/i
+  );
+  let cheatSheet: string[] = [];
+  if (cheatMatch) {
+    cheatSheet = cheatMatch[1]
+      .split(/\n/)
+      .map((l) => l.replace(/^[\*\-\d\.\s]+/, "").trim())
+      .filter((l) => l.length > 3)
+      .slice(0, 4);
+  }
+
+  return { option, text, confidence, why, raw: fullText, intuition, coreRule, comparison, pitfall, cheatSheet };
 }
 
 // Generate realistic synthetic screen for instant 1-click vision testing
@@ -392,6 +447,13 @@ export default function App() {
 
   const [simulateDesktop, setSimulateDesktop] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [hasActiveStream, setHasActiveStream] = useState(false);
+  const [showRawProof, setShowRawProof] = useState(false);
+  const [pipExpanded, setPipExpanded] = useState(false);
+
+  // Persistent MediaStream refs for instant 1-click uncropped frame snapping
+  const activeStreamRef = useRef<MediaStream | null>(null);
+  const activeVideoRef = useRef<HTMLVideoElement | null>(null);
 
   // Always-On-Top Document Picture-in-Picture window support
   const [pipContainer, setPipContainer] = useState<HTMLElement | null>(null);
@@ -408,8 +470,8 @@ export default function App() {
     if (typeof window !== "undefined" && "documentPictureInPicture" in window) {
       try {
         const pip = await (window as any).documentPictureInPicture.requestWindow({
-          width: 720,
-          height: 120,
+          width: 760,
+          height: 240,
         });
         pipWindowRef.current = pip;
 
@@ -430,7 +492,7 @@ export default function App() {
           }
         });
 
-        // Inject Times New Roman & classic dark styling
+        // Inject Times New Roman & classic dark styling with scrollbar styling
         const fontStyle = pip.document.createElement("style");
         fontStyle.textContent = `
           body {
@@ -439,7 +501,15 @@ export default function App() {
             background: #0A0A0A;
             color: #FFFFFF;
             font-family: "Times New Roman", Times, Georgia, serif;
-            overflow: hidden;
+            overflow-y: auto;
+            overflow-x: hidden;
+          }
+          ::-webkit-scrollbar {
+            width: 4px;
+          }
+          ::-webkit-scrollbar-thumb {
+            background: #1E3A8A;
+            border-radius: 4px;
           }
         `;
         pip.document.head.appendChild(fontStyle);
@@ -529,12 +599,12 @@ export default function App() {
       throw new Error("No Gemini API key provided. Please enter your key in Settings.");
     }
 
-    // High-speed generation config: cap tokens to 180 and temperature to 0.0 for instant output
+    // Structured Visual Bento Cards generation config: high speed with adequate tokens for all 5 cards
     const payload = {
       contents,
       generationConfig: {
-        maxOutputTokens: 180,
-        temperature: 0.0,
+        maxOutputTokens: 750,
+        temperature: 0.1,
       },
     };
 
@@ -785,11 +855,67 @@ export default function App() {
     if (!cleanApiKey) {
       let sampleText = "";
       if (solverMode === "quiz") {
-        sampleText = `OPTION: (B)\nTEXT: O(log n) — Logarithmic division of search range\nCONFIDENCE: 99%\nWHY: Binary search cuts the search space in half at each step, ensuring logarithmic time complexity.`;
+        sampleText = `OPTION: (B)
+TEXT: O(log n) — Logarithmic division of search range
+CONFIDENCE: 99%
+WHY: Binary search cuts the candidate space in half at each step, ensuring logarithmic time complexity.
+
+BOX_INTUITION: Think of finding a word in a 1,000-page dictionary. Instead of reading page by page, you open directly to page 500. If your word begins with 'S', you eliminate the entire first 500 pages in one second.
+
+BOX_CORE_RULE: At each step k, the remaining search window is N / 2^k. The process terminates when 1 element remains: 2^k = N ⟹ k = log₂(N).
+
+BOX_COMPARISON:
+• (A) O(n) is the worst-case for unsorted linear scan.
+• (B) O(log n) is the exact logarithmic bound for binary search.
+• (C) O(n log n) is for sorting algorithms (e.g. Merge Sort), not searching.
+• (D) O(1) only occurs if the target happens to be at the exact first midpoint checked.
+
+BOX_EXAM_TRAP: The prerequisite trap: Binary Search strictly requires a SORTED array. If unsorted, it produces silent incorrect results or loops.
+
+BOX_CHEAT_SHEET:
+• Sorted array prerequisite is mandatory.
+• Midpoint calculation should use low + (high - low) / 2 to prevent integer overflow.
+• Worst-case comparisons = ⌊log₂(n)⌋ + 1.`;
       } else if (solverMode === "code") {
-        sampleText = `OPTION: LINE 6\nTEXT: Fix pointer logic: low = mid + 1 and high = mid - 1\nCONFIDENCE: 95%\nWHY: Prevents infinite while-loop when target is in the upper half.`;
+        sampleText = `OPTION: LINE 6 FIX
+TEXT: low = mid + 1; and high = mid - 1;
+CONFIDENCE: 98%
+WHY: Failing to decrement or increment the boundaries causes an infinite loop when the target element is missing.
+
+BOX_INTUITION: If you do not shrink the search boundary by at least 1 index past the midpoint, the window never closes and the while-loop gets stuck forever on the same midpoint.
+
+BOX_CORE_RULE: Binary search requires strict monotonic reduction of the interval [low, high] so that high - low strictly decreases each cycle.
+
+BOX_COMPARISON:
+• Buggy Code: low = mid; (fails to terminate when high - low == 1).
+• Fixed Code: low = mid + 1; (strictly advances the search space).
+
+BOX_EXAM_TRAP: Off-by-one boundary traps: using while (low < high) instead of while (low <= high) fails on single-element arrays.
+
+BOX_CHEAT_SHEET:
+• Condition: while (low <= high).
+• Recalibrate bounds: low = mid + 1 or high = mid - 1.
+• Overflow prevention: mid = low + Math.floor((high - low) / 2).`;
       } else {
-        sampleText = `OPTION: SUMMARY\nTEXT: Binary Search Implementation in TypeScript\nCONFIDENCE: 98%\nWHY: Efficient divide-and-conquer algorithm with O(1) auxiliary space.`;
+        sampleText = `OPTION: CORE TAKEAWAY
+TEXT: Logarithmic Efficiency via Divide-and-Conquer
+CONFIDENCE: 96%
+WHY: Successively halving problem space yields exponential scalability across massive datasets.
+
+BOX_INTUITION: Splitting a problem in half repeatedly turns a massive 1,000,000-item dataset into just 20 operations (2^20 ≈ 1,000,000).
+
+BOX_CORE_RULE: Master Theorem recurrence: T(n) = aT(n/b) + f(n). When a=1, b=2, T(n) = O(log n).
+
+BOX_COMPARISON:
+• Linear O(n): 1,000,000 operations for 1M items.
+• Logarithmic O(log n): 20 operations for 1M items (50,000x faster).
+
+BOX_EXAM_TRAP: Conflating O(log n) search with O(n) preprocessing. If you must sort the array first, the total time is O(n log n) + O(log n) = O(n log n).
+
+BOX_CHEAT_SHEET:
+• Scales logarithmically with dataset size.
+• Foundation of balanced trees, binary heaps, and bisection search.
+• Golden rule: Whenever a search window halves each step, time complexity is O(log n).`;
       }
 
       let index = 0;
@@ -884,7 +1010,77 @@ export default function App() {
     }
   };
 
-  // Capture active window or full screen from user's display in browser mode
+  // Snap high-resolution uncropped frame from active stream
+  const snapFrameFromActiveStream = async () => {
+    const video = activeVideoRef.current;
+    if (!video) return;
+
+    setState("capturing");
+    setErrorMessage(null);
+
+    // Ensure video is actively playing frames
+    if (video.paused) {
+      await video.play().catch(() => {});
+    }
+
+    // Wait until video has valid dimensions
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      await new Promise<void>((resolve) => {
+        const handler = () => {
+          video.removeEventListener("loadeddata", handler);
+          resolve();
+        };
+        video.addEventListener("loadeddata", handler);
+        setTimeout(resolve, 300);
+      });
+    }
+
+    const nw = video.videoWidth || 1920;
+    const nh = video.videoHeight || 1080;
+
+    // Preserve exact window aspect ratio without cropping
+    const maxDim = 1920;
+    let targetW = nw;
+    let targetH = nh;
+    if (targetW > maxDim || targetH > maxDim) {
+      if (targetW > targetH) {
+        targetH = Math.round((targetH * maxDim) / targetW);
+        targetW = maxDim;
+      } else {
+        targetW = Math.round((targetW * maxDim) / targetH);
+        targetH = maxDim;
+      }
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(video, 0, 0, targetW, targetH);
+    }
+
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    setPreviewImage(dataUrl);
+    runBrowserVisionAI(dataUrl);
+  };
+
+  // Disconnect persistent window stream
+  const disconnectActiveStream = () => {
+    if (activeStreamRef.current) {
+      activeStreamRef.current.getTracks().forEach((track) => track.stop());
+      activeStreamRef.current = null;
+    }
+    if (activeVideoRef.current) {
+      activeVideoRef.current.srcObject = null;
+      activeVideoRef.current = null;
+    }
+    setHasActiveStream(false);
+  };
+
+  // Connect active window or full screen from user's display with persistent live stream
   const captureUserScreen = async () => {
     try {
       setState("capturing");
@@ -897,40 +1093,52 @@ export default function App() {
         );
       }
 
+      // If already connected, snap immediately
+      if (activeStreamRef.current && activeVideoRef.current) {
+        await snapFrameFromActiveStream();
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: "monitor" },
+        video: {
+          displaySurface: "window", // hints window picker first
+        } as any,
         audio: false,
       });
 
       const video = document.createElement("video");
       video.srcObject = stream;
+      video.muted = true;
+      video.playsInline = true;
       await video.play();
 
-      // Brief moment for screen frame to render
-      await new Promise((r) => setTimeout(r, 120));
+      // Wait for the video frame to actually load so videoWidth and videoHeight are authentic
+      await new Promise<void>((resolve) => {
+        if (video.readyState >= 2 && video.videoWidth > 0) {
+          resolve();
+        } else {
+          const onData = () => {
+            video.removeEventListener("loadeddata", onData);
+            resolve();
+          };
+          video.addEventListener("loadeddata", onData);
+          setTimeout(resolve, 400);
+        }
+      });
 
-      const canvas = document.createElement("canvas");
-      const maxDim = 1280;
-      let w = video.videoWidth || 1280;
-      let h = video.videoHeight || 720;
-      if (w > maxDim) {
-        h = Math.round((h * maxDim) / w);
-        w = maxDim;
+      activeStreamRef.current = stream;
+      activeVideoRef.current = video;
+      setHasActiveStream(true);
+
+      // Handle stream termination when user stops sharing via browser banner
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.onended = () => {
+          disconnectActiveStream();
+        };
       }
-      canvas.width = w;
-      canvas.height = h;
 
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, w, h);
-      }
-
-      // Terminate all stream tracks immediately after snapshot
-      stream.getTracks().forEach((track) => track.stop());
-
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
-      setPreviewImage(dataUrl);
-      runBrowserVisionAI(dataUrl);
+      await snapFrameFromActiveStream();
     } catch (err: any) {
       setState("idle");
       if (err.name !== "NotAllowedError" && err.name !== "AbortError") {
@@ -945,7 +1153,6 @@ export default function App() {
     setCurrentStreamingText("");
 
     const promptText = getSolverPrompt(solverMode, customPrompt);
-
     setMessages([{ role: "user", content: promptText }]);
 
     if (isTauri) {
@@ -964,7 +1171,12 @@ export default function App() {
         setState("error");
       }
     } else {
-      runBrowserVisionAI(previewImage, customPrompt);
+      // If we have an active stream connected to the user's window, snap fresh frame in 5ms!
+      if (activeStreamRef.current && activeVideoRef.current) {
+        await snapFrameFromActiveStream();
+      } else {
+        runBrowserVisionAI(previewImage, customPrompt);
+      }
     }
   };
 
@@ -1177,17 +1389,40 @@ export default function App() {
               </span>
             </button>
 
-            {/* Real Screen Capture Keycap */}
+            {/* Real Screen Capture Keycap / Live Stream Indicator */}
             {!isTauri && (
               <button
                 onClick={captureUserScreen}
                 disabled={state === "capturing" || state === "thinking"}
-                className="px-3 py-1.5 rounded bg-[#18181B] hover:bg-[#27272A] text-blue-200 font-bold text-xs flex items-center gap-1.5 border border-blue-900/80 shadow-[0_2px_0_#000] active:translate-y-0.5 transition-all disabled:opacity-50 cursor-pointer"
-                title="Select and capture your real window or screen, or paste with Ctrl+V"
+                className={`px-3 py-1.5 rounded font-bold text-xs flex items-center gap-1.5 border shadow-[0_2px_0_#000] active:translate-y-0.5 transition-all disabled:opacity-50 cursor-pointer ${
+                  hasActiveStream
+                    ? "bg-emerald-950 text-emerald-200 border-emerald-600/80 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+                    : "bg-[#18181B] hover:bg-[#27272A] text-blue-200 border-blue-900/80"
+                }`}
+                title={
+                  hasActiveStream
+                    ? "Live window connected. Click to snap a fresh frame instantly without reopening window picker."
+                    : "Connect your target window or screen for continuous 1-click live scanning."
+                }
               >
-                <Camera className="w-3.5 h-3.5 text-blue-400" />
-                <span className="hidden sm:inline">SELECT WINDOW</span>
-                <span className="inline sm:hidden">WINDOW</span>
+                <Camera className={`w-3.5 h-3.5 ${hasActiveStream ? "text-emerald-400" : "text-blue-400"}`} />
+                <span className="hidden sm:inline">
+                  {hasActiveStream ? "● LIVE STREAM (SNAP)" : "CONNECT WINDOW"}
+                </span>
+                <span className="inline sm:hidden">
+                  {hasActiveStream ? "● LIVE" : "WINDOW"}
+                </span>
+              </button>
+            )}
+
+            {/* Disconnect stream button if active */}
+            {!isTauri && hasActiveStream && (
+              <button
+                onClick={disconnectActiveStream}
+                className="px-2 py-1.5 rounded bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 font-bold text-xs border border-rose-800/60 cursor-pointer transition-all"
+                title="Disconnect live window stream"
+              >
+                DISCONNECT
               </button>
             )}
 
@@ -1293,17 +1528,36 @@ export default function App() {
           {state === "idle" && (
             <div className="flex items-center justify-between w-full text-gray-400 text-xs gap-2">
               <div className="flex items-center gap-2 truncate min-w-0">
-                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                <span
+                  className={`w-2 h-2 rounded-full shrink-0 ${
+                    hasActiveStream
+                      ? "bg-emerald-500 shadow-[0_0_8px_#10B981] animate-pulse"
+                      : "bg-blue-500 animate-pulse"
+                  }`}
+                />
                 <span className="truncate">
-                  Ready. Click <strong className="text-white font-bold">SOLVE SCREEN</strong> (or press{" "}
-                  <kbd className="px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800 text-blue-200 font-bold">
-                    {hotkeyInfo.shortcut}
-                  </kbd>
-                  ) or <strong className="text-blue-300 font-bold">FLOAT ON TOP</strong> to keep overlay visible over your target window.
+                  {hasActiveStream ? (
+                    <>
+                      <strong className="text-emerald-300 font-bold">Live window linked.</strong> Click{" "}
+                      <strong className="text-white font-bold">SOLVE SCREEN</strong> (or press{" "}
+                      <kbd className="px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800 text-blue-200 font-bold">
+                        {hotkeyInfo.shortcut}
+                      </kbd>
+                      ) to snap & answer fresh frames instantly without switching windows!
+                    </>
+                  ) : (
+                    <>
+                      Ready. Click <strong className="text-white font-bold">SOLVE SCREEN</strong> (or press{" "}
+                      <kbd className="px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800 text-blue-200 font-bold">
+                        {hotkeyInfo.shortcut}
+                      </kbd>
+                      ) or <strong className="text-blue-300 font-bold">FLOAT ON TOP</strong> to keep overlay visible over your target window.
+                    </>
+                  )}
                 </span>
               </div>
               <span className="text-xs text-gray-500 shrink-0 hidden md:inline">
-                Instant Sub-Second In-Place Output
+                {hasActiveStream ? "5ms Instant Stream Snapping" : "Instant Sub-Second In-Place Output"}
               </span>
             </div>
           )}
@@ -1451,42 +1705,152 @@ export default function App() {
           )}
         </div>
 
-        {/* EXPANDABLE DRAWER: Detailed Explanation & Follow-up Q&A (Academic Memo Style) */}
+        {/* EXPANDABLE DRAWER: Visual Concept Bento Cards & Follow-up Q&A */}
         {showDetails && parsedAnswer && (
-          <div className="p-4 border-t border-blue-950 bg-[#0F0F11] max-h-[340px] overflow-y-auto space-y-3 select-text">
+          <div className="p-4 border-t border-blue-950 bg-[#0C0D12] max-h-[460px] overflow-y-auto space-y-3.5 select-text">
+            {/* Header with Card Mode Switcher */}
             <div className="flex items-center justify-between border-b border-blue-950 pb-2">
-              <span className="text-xs font-bold text-blue-300 flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-blue-400" />
-                <span>EXECUTIVE TUTORING PROOF</span>
-              </span>
-              <button
-                onClick={() => setShowDetails(false)}
-                className="text-[10px] text-gray-500 hover:text-blue-300"
-              >
-                [ CLOSE ]
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_#2563EB]" />
+                <span className="text-xs font-bold text-white tracking-wider flex items-center gap-1.5 uppercase">
+                  <span>Socratic Visual Concept Cards</span>
+                  <span className="text-[10px] text-blue-300 font-normal tracking-normal">(Feynman Technique)</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowRawProof(!showRawProof)}
+                  className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                    showRawProof
+                      ? "border-blue-400 bg-blue-950 text-white font-bold"
+                      : "border-stone-800 bg-[#141414] text-gray-400 hover:text-white"
+                  }`}
+                  title="Toggle between Visual Bento Cards and Raw AI text"
+                >
+                  {showRawProof ? "SHOW VISUAL CARDS" : "SHOW RAW PROOF"}
+                </button>
+                <button
+                  onClick={() => setShowDetails(false)}
+                  className="text-[10px] text-gray-500 hover:text-blue-300 px-1 py-0.5"
+                >
+                  [ CLOSE ]
+                </button>
+              </div>
             </div>
 
-            <div className="text-xs leading-relaxed text-gray-200 prose prose-invert max-w-none">
-              <ReactMarkdown>{parsedAnswer.raw}</ReactMarkdown>
-            </div>
+            {/* Visual Bento Box Cards */}
+            {!showRawProof ? (
+              <div className="space-y-3">
+                {/* 2-Column Bento Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Card 1: 💡 Mental Model & Intuition */}
+                  <div className="p-3.5 rounded-lg border border-amber-500/30 bg-[#161410] shadow-[0_4px_16px_rgba(0,0,0,0.4)] flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 text-amber-400 text-xs font-bold mb-2">
+                        <Lightbulb className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span className="tracking-wide uppercase">Mental Model & Intuition</span>
+                        <span className="text-[9px] px-1 py-0.2 rounded bg-amber-950/80 text-amber-300 border border-amber-700/50 font-mono ml-auto">
+                          5-SEC LOGIC
+                        </span>
+                      </div>
+                      <p className="text-xs text-amber-100/90 leading-relaxed font-sans">
+                        {parsedAnswer.intuition || parsedAnswer.why || "Intuition derived from first principles."}
+                      </p>
+                    </div>
+                  </div>
 
-            {/* Quick Follow-up Question Input */}
+                  {/* Card 2: 📐 The Core Mechanism & Governing Rule */}
+                  <div className="p-3.5 rounded-lg border border-blue-500/30 bg-[#0E1524] shadow-[0_4px_16px_rgba(0,0,0,0.4)] flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5 text-blue-400 text-xs font-bold mb-2">
+                        <Cpu className="w-4 h-4 text-blue-400 shrink-0" />
+                        <span className="tracking-wide uppercase">Core Mechanism & Rule</span>
+                        <span className="text-[9px] px-1 py-0.2 rounded bg-blue-950/80 text-blue-300 border border-blue-700/50 font-mono ml-auto">
+                          FIRST PRINCIPLES
+                        </span>
+                      </div>
+                      <p className="text-xs text-blue-100/90 leading-relaxed font-mono bg-black/40 p-2 rounded border border-blue-950">
+                        {parsedAnswer.coreRule || parsedAnswer.why || "Strict algorithm/scientific specification rule."}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Card 3: ⚖️ Comparative Breakdown (Why Other Options Fail) */}
+                  <div className="p-3.5 rounded-lg border border-purple-500/30 bg-[#14101A] shadow-[0_4px_16px_rgba(0,0,0,0.4)]">
+                    <div className="flex items-center gap-1.5 text-purple-400 text-xs font-bold mb-2">
+                      <Layers className="w-4 h-4 text-purple-400 shrink-0" />
+                      <span className="tracking-wide uppercase">Comparative Breakdown</span>
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-purple-950/80 text-purple-300 border border-purple-700/50 font-mono ml-auto">
+                        OPTIONS ANALYSIS
+                      </span>
+                    </div>
+                    <div className="text-xs text-purple-100/90 leading-relaxed font-sans whitespace-pre-line">
+                      {parsedAnswer.comparison || "Detailed contrast of winning selection against alternatives."}
+                    </div>
+                  </div>
+
+                  {/* Card 4: ⚠️ The Examiner's Trap (Common Pitfall) */}
+                  <div className="p-3.5 rounded-lg border border-rose-500/30 bg-[#1A1012] shadow-[0_4px_16px_rgba(0,0,0,0.4)]">
+                    <div className="flex items-center gap-1.5 text-rose-400 text-xs font-bold mb-2">
+                      <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+                      <span className="tracking-wide uppercase">The Examiner's Trap</span>
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-rose-950/80 text-rose-300 border border-rose-700/50 font-mono ml-auto">
+                        WATCH OUT
+                      </span>
+                    </div>
+                    <p className="text-xs text-rose-100/90 leading-relaxed font-sans">
+                      {parsedAnswer.pitfall || "Be alert for subtle edge-cases, prerequisite conditions, and distractor traps."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Card 5: 📌 High-Yield 30-Second Cheat Sheet (Full Width) */}
+                {parsedAnswer.cheatSheet && parsedAnswer.cheatSheet.length > 0 && (
+                  <div className="p-3.5 rounded-lg border border-emerald-500/30 bg-[#0F1814] shadow-[0_4px_16px_rgba(0,0,0,0.4)]">
+                    <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-bold mb-2.5">
+                      <BookOpen className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span className="tracking-wide uppercase">High-Yield 30-Second Cheat Sheet</span>
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-700/50 font-mono ml-auto">
+                        EXAM MEMORY
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {parsedAnswer.cheatSheet.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="p-2 rounded bg-black/50 border border-emerald-950 text-xs text-emerald-100/90 flex items-start gap-2"
+                        >
+                          <span className="text-emerald-400 font-mono font-bold shrink-0">0{idx + 1}.</span>
+                          <span className="leading-snug">{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Raw Markdown Proof View */
+              <div className="text-xs leading-relaxed text-gray-200 prose prose-invert max-w-none p-3 rounded bg-black/40 border border-blue-950">
+                <ReactMarkdown>{parsedAnswer.raw}</ReactMarkdown>
+              </div>
+            )}
+
+            {/* Quick Socratic Follow-up Question Input */}
             <form onSubmit={handleFollowUpSubmit} className="pt-2 flex items-center gap-2">
               <input
                 type="text"
                 value={followUp}
                 onChange={(e) => setFollowUp(e.target.value)}
-                placeholder="Ask follow-up (e.g. 'Why is option C incorrect?')..."
-                className="flex-1 bg-[#050505] border border-blue-950 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500"
+                placeholder="Ask Socratic follow-up (e.g. 'Why is option C flawed?' or 'Explain the intuition in simpler words')..."
+                className="flex-1 bg-[#050505] border border-blue-950 rounded px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500 font-sans"
               />
               <button
                 type="submit"
                 disabled={!followUp.trim() || state === "thinking"}
-                className="px-3 py-1.5 rounded bg-blue-700 hover:bg-blue-600 border border-blue-500 text-white text-xs font-bold transition-all disabled:opacity-40 flex items-center gap-1"
+                className="px-3 py-1.5 rounded bg-blue-700 hover:bg-blue-600 border border-blue-500 text-white text-xs font-bold transition-all disabled:opacity-40 flex items-center gap-1 cursor-pointer"
               >
                 <Send className="w-3 h-3" />
-                <span>ASK</span>
+                <span>ASK TUTOR</span>
               </button>
             </form>
           </div>
@@ -1666,42 +2030,59 @@ export default function App() {
       {pipContainer &&
         createPortal(
           <div
-            className="w-full h-full bg-[#0A0A0A] text-white p-3 flex flex-col justify-between select-none border-2 border-blue-800"
+            className="w-full h-full bg-[#0A0A0A] text-white p-3 flex flex-col justify-between select-none border-2 border-blue-800 font-sans"
             style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
           >
             {/* Top row in floating HUD */}
-            <div className="flex items-center justify-between border-b border-blue-950 pb-1 text-xs">
+            <div className="flex items-center justify-between border-b border-blue-950 pb-1.5 text-xs">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_6px_#2563EB]" />
+                <span
+                  className={`w-2.5 h-2.5 rounded-full ${
+                    hasActiveStream
+                      ? "bg-emerald-500 shadow-[0_0_8px_#10B981] animate-pulse"
+                      : "bg-blue-500 shadow-[0_0_8px_#2563EB]"
+                  }`}
+                />
                 <span className="font-bold tracking-wide text-white">THE ACADEMIC TUTOR</span>
                 <span className="text-[9px] px-1.5 py-0.5 rounded border border-blue-800 bg-blue-950 text-blue-300 font-bold">
-                  ALWAYS ON TOP
+                  {hasActiveStream ? "LIVE STREAM ACTIVE" : "ALWAYS ON TOP"}
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <button
+                  onClick={() => setPipExpanded(!pipExpanded)}
+                  className="px-2 py-0.5 rounded bg-[#18181B] hover:bg-[#27272A] border border-stone-700 text-blue-300 text-xs font-bold transition-all cursor-pointer"
+                  title="Toggle concept cards in floating window"
+                >
+                  {pipExpanded ? "COLLAPSE" : "💡 CARDS"}
+                </button>
+                <button
                   onClick={() => handleTrigger()}
                   disabled={state === "thinking" || state === "capturing"}
                   className="px-3 py-1 rounded bg-blue-700 hover:bg-blue-600 text-white font-bold text-xs flex items-center gap-1 shadow cursor-pointer border border-blue-400 transition-all active:translate-y-0.5"
+                  title="Snap and solve frame immediately from your active window"
                 >
                   <Zap className="w-3 h-3 text-white fill-current" />
-                  <span>SOLVE NOW</span>
+                  <span>{state === "thinking" ? "SOLVING..." : "SNAP & SOLVE"}</span>
                 </button>
               </div>
             </div>
 
-            {/* Bottom row in floating HUD */}
-            <div className="flex items-center justify-between pt-1 text-xs">
+            {/* Answer Display */}
+            <div className="flex items-center justify-between pt-1.5 text-xs min-h-[36px]">
               {state === "ready" && parsedAnswer ? (
                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <div className="px-2.5 py-0.5 rounded bg-blue-800 border border-blue-400 text-white font-bold text-sm shrink-0">
+                  <div className="px-3 py-1 rounded bg-blue-800 border border-blue-400 text-white font-bold text-sm shrink-0 shadow">
                     {parsedAnswer.option}
                   </div>
-                  <span className="font-bold text-white truncate shrink min-w-0 text-xs" title={parsedAnswer.text}>
+                  <span
+                    className="font-bold text-white truncate shrink min-w-0 text-xs font-sans"
+                    title={parsedAnswer.text}
+                  >
                     {parsedAnswer.text}
                   </span>
                   {parsedAnswer.confidence && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800 text-blue-300 shrink-0">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800 text-blue-300 shrink-0 font-mono font-bold">
                       {parsedAnswer.confidence}
                     </span>
                   )}
@@ -1709,19 +2090,58 @@ export default function App() {
               ) : (
                 <div className="text-gray-400 text-xs italic">
                   {state === "thinking"
-                    ? "Evaluating screen question..."
-                    : "Floating over your target window. Press Solve Now."}
+                    ? "Evaluating screen question via Gemini 2.0 Flash..."
+                    : state === "capturing"
+                    ? "Grabbing fresh frame from your window..."
+                    : "Floating over your active window. Click 'SNAP & SOLVE' to answer instantly."}
                 </div>
               )}
               {state === "ready" && parsedAnswer && (
                 <button
                   onClick={handleCopyAnswer}
-                  className="ml-2 px-2 py-0.5 rounded border border-blue-800 bg-blue-950 hover:bg-blue-900 text-blue-300 text-xs shrink-0 font-bold"
+                  className="ml-2 px-2.5 py-1 rounded border border-blue-800 bg-blue-950 hover:bg-blue-900 text-blue-300 text-xs shrink-0 font-bold cursor-pointer"
                 >
-                  COPY
+                  {copiedAnswer ? "COPIED" : "COPY"}
                 </button>
               )}
             </div>
+
+            {/* Expanded Visual Cards inside floating PiP */}
+            {pipExpanded && parsedAnswer && (
+              <div className="mt-2 pt-2 border-t border-blue-950/80 max-h-[160px] overflow-y-auto space-y-2 text-xs font-sans">
+                {/* Intuition Box */}
+                {(parsedAnswer.intuition || parsedAnswer.why) && (
+                  <div className="p-2 rounded bg-[#161410] border border-amber-500/30 text-amber-200/90 text-[11px] leading-snug">
+                    <span className="font-bold text-amber-400 uppercase tracking-wider block mb-0.5 font-mono text-[9px]">
+                      💡 Mental Model (Intuition):
+                    </span>
+                    {parsedAnswer.intuition || parsedAnswer.why}
+                  </div>
+                )}
+                {/* Examiner Trap Box */}
+                {parsedAnswer.pitfall && (
+                  <div className="p-2 rounded bg-[#1A1012] border border-rose-500/30 text-rose-200/90 text-[11px] leading-snug">
+                    <span className="font-bold text-rose-400 uppercase tracking-wider block mb-0.5 font-mono text-[9px]">
+                      ⚠️ Examiner Trap:
+                    </span>
+                    {parsedAnswer.pitfall}
+                  </div>
+                )}
+                {/* Cheat Sheet */}
+                {parsedAnswer.cheatSheet && parsedAnswer.cheatSheet.length > 0 && (
+                  <div className="p-2 rounded bg-[#0F1814] border border-emerald-500/30 text-emerald-200/90 text-[11px] leading-snug">
+                    <span className="font-bold text-emerald-400 uppercase tracking-wider block mb-0.5 font-mono text-[9px]">
+                      📌 30-Sec Cheat Sheet:
+                    </span>
+                    <ul className="list-disc pl-3.5 space-y-0.5 text-[10px]">
+                      {parsedAnswer.cheatSheet.map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>,
           pipContainer
         )}

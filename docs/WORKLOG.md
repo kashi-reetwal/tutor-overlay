@@ -241,3 +241,33 @@ One small note per change, newest last. If a change touched stack, capture, hotk
 5. **Automated Live Web Deployment (GitHub Pages & Vercel)**:
    - Configured `base: "./"` in `frontend/vite.config.ts` for static host compatibility.
    - Added `.github/workflows/deploy.yml` to automatically build and publish the frontend to GitHub Pages on every push to `main`.
+
+---
+
+## Milestone 9: Socratic Visual Bento Cards (Feynman Method), Full-Frame Uncropped Window Stream & In-PiP Rescanning (2026-10-01)
+
+### Changes & Problems Solved
+1. **Elimination of "Brain-Rot" Text Walls (Socratic Visual Concept Bento Cards)**:
+   - **Problem**: When analyzing or summarizing text, raw AI outputs produced dense, generic paragraphs of text ("brain rot") that students already have in their textbooks and refuse to read.
+   - **Solution**: Implemented the **Feynman Visual Learning Technique** with 5 structured, color-coded concept cards:
+     - 💡 **Mental Model & Intuition** (Warm amber card): Real-world analogy explaining the core intuition in 5 seconds.
+     - 📐 **Core Mechanism & Rule** (Oxford blue card): The exact governing algorithm, formula, or scientific law.
+     - ⚖️ **Comparative Breakdown** (Purple card): Sharp contrast of why the winning option succeeds and why alternatives fail.
+     - ⚠️ **The Examiner's Trap** (Crimson card): The exact psychological misconception or boundary trick examiners test.
+     - 📌 **High-Yield 30-Second Cheat Sheet** (Emerald card): 3 numbered high-yield bullet cards for rapid exam recall.
+   - **Raw Proof Toggle**: Added a toggle switch between the Visual Bento Cards and raw markdown output.
+   - **Prompt Engineering & Token Allocation**: Rewrote `getSolverPrompt` to strictly forbid conversational essay filler and require tagged visual boxes (`BOX_INTUITION`, `BOX_CORE_RULE`, `BOX_COMPARISON`, `BOX_EXAM_TRAP`, `BOX_CHEAT_SHEET`). Increased `maxOutputTokens` from 180 to 750 so all 5 cards generate fully without mid-sentence truncation.
+
+2. **Full-Frame Uncropped Window Capture**:
+   - **Problem**: Capturing a window clipped or cropped a portion of the screen because `<video>` dimensions were evaluated before frame decoding was complete, defaulting to a hardcoded 1280x720 canvas that stretched non-standard aspect ratios.
+   - **Solution**: Awaited `video.onloadeddata` / `video.readyState >= 2` with verified `video.videoWidth > 0`. Dynamically computed canvas dimensions preserving the exact aspect ratio up to 1920px Full HD, ensuring 100% uncropped capture for all window geometries.
+
+3. **Persistent Live Window Stream (No Switching to Localhost)**:
+   - **Problem**: Stopping the media stream after each capture forced students to alt-tab back to localhost, re-select their window, and alt-tab back.
+   - **Solution**: Maintained the media stream in `activeStreamRef`. Once connected, the user has a live persistent link indicated by **`● LIVE STREAM (SNAP)`**. Pressing `Alt+T` or clicking `[ ⚡ SOLVE SCREEN ]` grabs fresh frames in ~5ms without reopening the OS window picker. A `DISCONNECT` button allows clean detachment.
+
+4. **Enhanced Always-On-Top Floating Picture-in-Picture HUD**:
+   - Picture-in-Picture window updated to 760x240px with a live stream indicator.
+   - Added **`[ ⚡ SNAP & SOLVE ]`** inside the floating HUD to grab live frames directly from the active window without switching focus.
+   - Added **`[ 💡 CARDS ]`** expander inside the floating PiP window so students can read the Mental Model, Examiner Trap, and Cheat Sheet directly over their active test/code window.
+
