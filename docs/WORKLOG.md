@@ -58,3 +58,12 @@ One small note per change, newest last. If a change touched stack, capture, hotk
 - **Build Verification:** Added `@tailwindcss/vite`, updated `vite.config.ts`, installed npm packages, and verified production frontend build (`npm run build`) passes cleanly.
 - **Tauri CLI & Config Validation:** Installed `@tauri-apps/cli` at root, fixed `tauri/tauri.conf.json` schema (`frontendDist` path and removed invalid `devtools` key), and confirmed `npx tauri info` passes. Verified Vite dev server runs at `http://localhost:1420/`.
 
+---
+
+## 2026-09-30 — Toolchain configuration, app icon, and prototype runtime enablement
+
+- **Rust Toolchain:** Installed Rust (`rustup` with `cargo 1.98.1` and `rustc 1.98.1`). Configured default toolchain to `stable-x86_64-pc-windows-gnu` for portable Windows compilation without full Visual Studio IDE dependency.
+- **Cargo Configuration:** Set `resolver = "2"` in root workspace `Cargo.toml` and consolidated workspace release profile.
+- **App Icon:** Designed and generated a high-resolution 3D neon cyber-tutor graduation cap & lens icon and replaced placeholder at `tauri/icon.png`.
+- **Documentation:** Updated `docs/TECHSTACK.md`, `docs/PLAYBOOK.md`, and `docs/WORKLOG.md` detailing prototype testing instructions for both browser preview (`npm run dev:frontend`) and native desktop overlay (`npm run dev:tauri`).
+

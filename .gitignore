@@ -5,7 +5,7 @@ vendor/
 # Build
 dist/
 build/
-.target/
+target/
 **/*.rs.bk
 .tauri/
 

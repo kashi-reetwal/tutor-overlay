@@ -13,13 +13,20 @@ This split matters because Tauri CLI expects the app crate to live in `src-tauri
 
 ## App icon
 
-`tauri/icon.png` is currently a minimal valid 1x1 transparent PNG placeholder. It exists so Tauri does not fail icon validation early. Replace it with a real app icon before any release build.
+`tauri/icon.png` is an AI-generated neon cyber-tutor graduation cap and lens icon in high-res glossy 3D aesthetic, replacing the earlier 1x1 placeholder.
+
+## Toolchain & Runtime
+
+- **Rust:** `stable-x86_64-pc-windows-gnu` managed via `rustup`.
+- **C/C++ Linker:** WinLibs MinGW-w64 64-bit GCC/binutils suite.
+- **Frontend & CLI:** Node.js 24 + npm 11 + `@tauri-apps/cli` v2.
+- **WebView:** Microsoft Edge WebView2 runtime.
 
 ## Env and secrets
 
-- `.env.example` documents the expected AI-provider fields.
+- `.env.example` documents the expected AI-provider fields (`AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_BASE_URL`).
 - `.env.local` is git-ignored and holds real values.
-- The backend AI module should read from env; the exact fields will be finalized when the AI command module is wired.
+- The backend AI module reads from `.env` or `.env.local` via `dotenvy`.
 
 ## Not in v1 (listed for clarity)
 

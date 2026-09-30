@@ -1,5 +1,6 @@
 [workspace]
 members = ["src-tauri"]
+resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
@@ -20,3 +21,10 @@ futures-util = "0.3"
 base64 = "0.22"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 dotenvy = "0.15"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "z"
+strip = true

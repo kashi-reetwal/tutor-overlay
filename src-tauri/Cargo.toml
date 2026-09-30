@@ -33,9 +33,3 @@ windows = { version = "0.58", features = [
     "Win32_Graphics_Gdi"
 ] }
 
-[profile.release]
-panic = "abort"
-codegen-units = 1
-lto = true
-opt-level = "z"
-strip = true

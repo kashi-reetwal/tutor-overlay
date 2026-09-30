@@ -16,9 +16,10 @@ How to run, test, package, and verify the Windows AI tutor overlay.
 ## 1. First-time setup
 
 ### 1.1 Prerequisites
-- Windows
-- Rust toolchain
-- Node.js
+- Windows 10/11
+- Rust toolchain (`stable-x86_64-pc-windows-gnu` via rustup)
+- WinLibs MinGW-w64 64-bit compiler/binutils
+- Node.js 24+ & npm 11+
 - Git with credential store configured (so pushes don't prompt)
 
 ### 1.2 Get the repo
@@ -29,20 +30,38 @@ cd tutor-overlay
 
 If cloning over HTTPS instead, the credential store should supply the PAT without prompting.
 
-### 1.3 Install frontend deps
+### 1.3 Install dependencies
 ```bash
+# Root CLI dependencies
 npm install
+
+# Frontend renderer dependencies
+cd frontend && npm install && cd ..
 ```
 
-### 1.4 Verify the Rust side knows what it needs
-Check `Cargo.toml` and the Rust source layout under `src/main/` before running the app. The first working commit should have a minimal Tauri app that launches.
+### 1.4 Configure environment
+Copy `.env.example` to `.env.local` and add your API key:
+```env
+AI_PROVIDER=gemini # or openai
+AI_MODEL=gemini-1.5-flash # or gpt-4o-mini
+AI_API_KEY=your_key_here
+```
 
 ---
 
-## 2. Run the app
+## 2. Run the prototype
 
+### 2.1 Browser Preview (Fast UI testing)
+To test the floating card UI, simulated capture, follow-up query, and styling without compiling the desktop binary:
 ```bash
-npm run tauri dev
+npm run dev:frontend
+```
+Open `http://localhost:1420/`.
+
+### 2.2 Native Desktop App (Alt+T Hotkey & Win32 Capture)
+To run the full Tauri desktop application with the native Windows global hotkey and active window capture:
+```bash
+npm run dev:tauri
 ```
 
 What "works" means at each stage:
