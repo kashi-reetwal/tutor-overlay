@@ -16,37 +16,9 @@
     background-size: 24px 24px;
   }
 
-  /* Google Assistant / Gemini Screen Perimeter Lightning Glow */
-  .screen-lightning-idle {
-    box-shadow: inset 0 0 24px 2px rgba(0, 240, 255, 0.5),
-                inset 0 0 60px 8px rgba(139, 92, 246, 0.25);
-  }
-
-  .screen-lightning-capturing {
-    box-shadow: inset 0 0 45px 8px rgba(245, 158, 11, 0.95),
-                inset 0 0 90px 20px rgba(251, 191, 36, 0.6),
-                inset 0 0 140px 35px rgba(217, 119, 6, 0.35);
-    animation: lightningSurge 0.7s ease-in-out infinite alternate;
-  }
-
-  .screen-lightning-thinking {
-    box-shadow: inset 0 0 45px 8px rgba(0, 240, 255, 0.95),
-                inset 0 0 90px 20px rgba(139, 92, 246, 0.7),
-                inset 0 0 150px 35px rgba(59, 130, 246, 0.45);
-    animation: lightningSurge 1.4s ease-in-out infinite alternate;
-  }
-
-  .screen-lightning-ready {
-    box-shadow: inset 0 0 30px 4px rgba(0, 240, 255, 0.7),
-                inset 0 0 75px 12px rgba(16, 185, 129, 0.3),
-                inset 0 0 120px 22px rgba(139, 92, 246, 0.2);
-    animation: lightningBreathe 2.8s ease-in-out infinite alternate;
-  }
-
-  .screen-lightning-error {
-    box-shadow: inset 0 0 45px 8px rgba(244, 63, 94, 0.9),
-                inset 0 0 95px 20px rgba(225, 29, 72, 0.5);
-    animation: lightningSurge 0.9s ease-in-out infinite alternate;
+  /* Clean edge perimeter boundary - zero inner fog/layer over the window */
+  .screen-boundary-clean {
+    box-shadow: none !important;
   }
 
   /* Authentic Google Assistant 4-Color Gradient Flow */

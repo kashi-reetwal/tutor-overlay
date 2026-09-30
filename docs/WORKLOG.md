@@ -141,4 +141,26 @@ One small note per change, newest last. If a change touched stack, capture, hotk
 - **Tauri Native Overlay Configuration:**
   - Configured `tauri/tauri.conf.json` with `fullscreen: true`, `transparent: true`, `decorations: false`, and `alwaysOnTop: true` for native screen boundary hugging on Windows.
 
+---
+
+## [2026-10-01] - Milestone 7: Two-Lined Top Panel In-Place HUD & Direct Quiz Option Answering (Zero-Layer Boundary)
+
+### User Request Addressed
+1. **Removed Heavy Screen Lightning Layers:** The radial corner blur flares and inset screen lightning box-shadows were creating too much of a dense layer over the screen. Removed all inner fog layers, leaving 100% of the screen interior clear.
+2. **Crisp Colorful Window Perimeter Boundary:** Preserved only the sleek, continuous, animated 3px neon perimeter frame (`google-assistant-border`, `arc-reactor-border`, `stark-gold-border`) hugging the exact outer edges of the window.
+3. **Consolidated into a 2-Lined Top Panel HUD:** Replaced the bulky floating center card with an ultra-sleek, compact two-row top panel HUD (`max-w-5xl` at top center):
+   - **Line 1 (Options & Controls):** AI Tutor identity badge, status indicator (`IDLE`, `SCANNING...`, `SOLVING...`, `ANSWER READY`), primary glowing `[ ⚡ READ & SOLVE SCREEN ]` button with `Alt+T`, solver mode selector pills (`🎯 Quiz Option (A/B/C/D)`, `🐞 Code Bug Fix`, `📝 Summary`), boundary theme cycler (`AURORA`, `ARC`, `MARK-85`), and Settings drawer toggle.
+   - **Line 2 (Instant In-Place Results):** Built specifically for exams, quizzes, and live coding where the user must not need to copy-paste questions into GPT/Gemini:
+     - Prominent, bold option highlight: e.g. **`🎯 (B)`** in glowing emerald with CheckCircle2.
+     - Direct text: `— O(log n) — Logarithmic division of search range`.
+     - Confidence metric: `[99% CONFIDENCE]`.
+     - 1-Sentence Rationale: `Why: Binary search cuts the search space in half at each step, ensuring logarithmic time complexity.`
+     - In-place quick actions: `[ 📋 COPY ]`, `[ ▾ DETAILS ]`, `[ ↻ RESCAN ]`.
+4. **Expandable Drawers on Demand:**
+   - Detailed rationale & multi-turn follow-up Q&A input expand smoothly directly underneath Line 2 when `[ DETAILS ]` is clicked.
+   - API key, provider select, multi-model testing (`gemini-2.0-flash`), and intensity controls expand smoothly underneath Line 2 when `[ SETTINGS ]` is clicked.
+5. **Interactive Simulated Quiz Window:**
+   - In browser mode, toggling `[ 🖥️ DESKTOP ON/OFF ]` renders a full-screen multiple-choice quiz question (Binary Search complexity) behind the top panel, allowing instant testing of in-place option detection.
+
+
 
