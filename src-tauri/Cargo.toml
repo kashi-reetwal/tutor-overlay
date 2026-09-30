@@ -1,0 +1,28 @@
+[package]
+name = "tutor-overlay"
+version = "0.1.0"
+edition = "2021"
+description = "Windows hotkey AI tutor overlay"
+authors = ["Kashi Reetwal"]
+
+[lib]
+name = "tutor_overlay"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri.workspace = true
+tauri-plugin-global-shortcut.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+env_logger.workspace = true
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "z"
+strip = true

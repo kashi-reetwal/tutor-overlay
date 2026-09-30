@@ -1,0 +1,17 @@
+{
+  "name": "tutor-overlay",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev:frontend",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:tauri": "tauri dev",
+    "build": "npm run build:frontend && tauri build",
+    "build:frontend": "cd frontend && npm run build",
+    "tauri": "tauri"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

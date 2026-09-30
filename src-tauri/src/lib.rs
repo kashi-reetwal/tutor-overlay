@@ -9,19 +9,16 @@ pub fn run() {
 
     info!("tutor-overlay starting");
 
-    let result = tauri::Builder::default()
+    tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(|invoke| {
             warn!("unhandled invoke: {:?}", invoke);
-           Ok(tauri::Response::default())
+            Ok(tauri::Response::default())
         })
         .setup(|_app| {
             info!("tutor-overlay setup complete");
             Ok(())
         })
-        .run(tauri::generate_context!());
-
-    if let Err(err) = result {
-        warn!("tutor-overlay failed to run: {}", err);
-    }
+        .run(tauri::generate_context!())
+        .expect("failed to run tutor-overlay");
 }

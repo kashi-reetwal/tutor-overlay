@@ -1,9 +1,13 @@
-[package]
-name = "tutor-overlay"
+[workspace]
+members = ["src-tauri"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
+authors = ["Kashi Reetwal"]
+description = "Windows hotkey AI tutor overlay"
 
-[dependencies]
+[workspace.dependencies]
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-global-shortcut = "2"
 serde = { version = "1", features = ["derive"] }
