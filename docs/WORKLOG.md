@@ -56,4 +56,5 @@ One small note per change, newest last. If a change touched stack, capture, hotk
 - **Tauri IPC Commands (`src-tauri/src/commands/mod.rs`):** Added `get_hotkey_status`, `trigger_tutor`, `send_followup`, `set_card_visible`, and `dismiss_card`.
 - **Frontend Overlay (`frontend/src/App.tsx`):** Built interactive floating card UI with glassmorphic styling, drag handle (`data-tauri-drag-region`), hotkey status alert banner, streaming text auto-scroll, follow-up form, and quick dismiss (`Esc`). Added browser preview fallback so frontend can be developed standalone with Vite.
 - **Build Verification:** Added `@tailwindcss/vite`, updated `vite.config.ts`, installed npm packages, and verified production frontend build (`npm run build`) passes cleanly.
+- **Tauri CLI & Config Validation:** Installed `@tauri-apps/cli` at root, fixed `tauri/tauri.conf.json` schema (`frontendDist` path and removed invalid `devtools` key), and confirmed `npx tauri info` passes. Verified Vite dev server runs at `http://localhost:1420/`.
 

@@ -1,4 +1,5 @@
 {
+  "$schema": "https://schema.tauri.app/config/2",
   "productName": "tutor-overlay",
   "version": "0.1.0",
   "identifier": "com.kashi.tutor-overlay",
@@ -6,17 +7,16 @@
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
-    "frontendDist": "../../frontend/dist",
-    "devtools": true
+    "frontendDist": "../frontend/dist"
   },
   "app": {
     "windows": [
       {
         "title": "tutor-overlay",
         "label": "main",
-        "width": 420,
-        "height": 320,
-        "resizable": false,
+        "width": 460,
+        "height": 480,
+        "resizable": true,
         "fullscreen": false,
         "decorations": false,
         "transparent": true,
