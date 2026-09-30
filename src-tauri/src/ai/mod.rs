@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tauri::{AppHandle, Emitter};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiConfig {
     pub provider: String,
     pub model: String,
@@ -14,6 +14,39 @@ pub struct AiConfig {
 }
 
 impl AiConfig {
+    pub fn resolve(client_override: Option<AiConfig>) -> Result<Self, String> {
+        if let Some(c) = client_override {
+            let key = c.api_key.trim().to_string();
+            if !key.is_empty() {
+                let provider = if c.provider.is_empty() {
+                    if key.starts_with("AIzaSy") {
+                        "gemini".to_string()
+                    } else {
+                        "openai".to_string()
+                    }
+                } else {
+                    c.provider.to_lowercase()
+                };
+                let model = if c.model.trim().is_empty() {
+                    if provider == "gemini" {
+                        "gemini-1.5-flash".to_string()
+                    } else {
+                        "gpt-4o-mini".to_string()
+                    }
+                } else {
+                    c.model.trim().to_string()
+                };
+                return Ok(Self {
+                    provider,
+                    model,
+                    api_key: key,
+                    base_url: c.base_url,
+                });
+            }
+        }
+        Self::from_env()
+    }
+
     pub fn from_env() -> Result<Self, String> {
         let _ = dotenvy::dotenv();
         let _ = dotenvy::from_filename(".env.local");
@@ -22,7 +55,7 @@ impl AiConfig {
             .or_else(|_| std::env::var("OPENAI_API_KEY"))
             .or_else(|_| std::env::var("GEMINI_API_KEY"))
             .map_err(|_| {
-                "Missing AI_API_KEY. Please set AI_API_KEY in .env.local or your environment."
+                "Missing AI_API_KEY. Please paste your Gemini API key in Settings (⚙️) or set AI_API_KEY in .env.local."
                     .to_string()
             })?;
 
@@ -68,8 +101,9 @@ pub async fn query_vision_model_stream(
     app: &AppHandle,
     image_base64: &str,
     user_query: Option<&str>,
+    client_config: Option<AiConfig>,
 ) -> Result<String, String> {
-    let config = AiConfig::from_env()?;
+    let config = AiConfig::resolve(client_config)?;
     info!("Querying AI tutor using provider: {}, model: {}", config.provider, config.model);
 
     let client = reqwest::Client::new();
@@ -88,8 +122,9 @@ pub async fn query_followup_stream(
     app: &AppHandle,
     prior_answer: &str,
     followup_query: &str,
+    client_config: Option<AiConfig>,
 ) -> Result<String, String> {
-    let config = AiConfig::from_env()?;
+    let config = AiConfig::resolve(client_config)?;
     let client = reqwest::Client::new();
 
     if config.provider == "gemini" {
@@ -287,6 +322,12 @@ async fn query_gemini_followup_stream(
             ]
         },
         "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    { "text": "Please tutor me on what is visible on my screen." }
+                ]
+            },
             {
                 "role": "model",
                 "parts": [

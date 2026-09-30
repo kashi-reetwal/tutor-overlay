@@ -91,3 +91,18 @@ One small note per change, newest last. If a change touched stack, capture, hotk
   - Holographic reticle corner brackets and glowing command chips (`DEEP RECON`, `DEBUG FAULT`, `TACTICAL BRIEF`).
 - **Direct Gemini Key Integration:** Documented and linked Google AI Studio direct key generation in settings, clarifying that simulation mode works with zero keys required.
 
+## [2026-10-01] - Milestone 5: Gemini API Key Bug Fixes & Multiturn Schema Repair
+
+### Fixed & Enhanced
+- **API Key Sanitization & Verification:**
+  - Auto-sanitization on key input and blur: automatically strips accidental spaces, newlines, and surrounding quotation marks (`"..."` / `'...'`).
+  - Added interactive **"TEST API KEY"** button in Settings (⚙️) that directly pings Google Gemini with feedback:
+    - Displays `CheckCircle2` (green checkmark) when uplink succeeds.
+    - Displays `XCircle` (red cross) with exact diagnostics for HTTP 400 (Invalid key), 403 (Permissions), 404 (Model not found), and 429 (Rate limit).
+  - Quick model selector pills: `[ gemini-1.5-flash ]`, `[ gemini-2.0-flash ]`, `[ gemini-1.5-pro ]`.
+- **Eliminated Gemini Multiturn 400 Bug:**
+  - In Google Gemini API, conversation turns must alternate and start with `role: "user"`. Fixed frontend follow-up builder and Rust `query_gemini_followup_stream` to guarantee `contents[0]` is `role: "user"`, completely resolving the `Please ensure that multiturn talk starts with user role` 400 error.
+- **Robust Answer Generation & Delivery:**
+  - Direct atomic vision queries with smooth holographic typewriter streaming into the JARVIS HUD.
+  - Auto-fallback for visual telemetry: automatically provides sample IDE code frame if no screenshot has been captured or uploaded yet, ensuring Vision AI never fails on empty payload.
+  - Connected client-side settings override to Tauri Rust IPC commands (`trigger_tutor`, `send_followup`).

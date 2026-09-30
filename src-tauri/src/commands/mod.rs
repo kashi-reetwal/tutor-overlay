@@ -29,6 +29,7 @@ pub async fn trigger_tutor(
     app: AppHandle,
     state: State<'_, AppState>,
     user_query: Option<String>,
+    api_config: Option<ai::AiConfig>,
 ) -> Result<(), String> {
     info!("Triggering tutor explanation pipeline");
 
@@ -56,7 +57,7 @@ pub async fn trigger_tutor(
     let _ = app.emit("tutor:state", "thinking");
 
     // 5. Query AI vision model with streaming
-    match ai::query_vision_model_stream(&app, &captured.base64, user_query.as_deref()).await {
+    match ai::query_vision_model_stream(&app, &captured.base64, user_query.as_deref(), api_config).await {
         Ok(final_answer) => {
             let mut last = state.last_answer.lock().unwrap();
             *last = final_answer;
@@ -77,6 +78,7 @@ pub async fn send_followup(
     app: AppHandle,
     state: State<'_, AppState>,
     query: String,
+    api_config: Option<ai::AiConfig>,
 ) -> Result<(), String> {
     info!("Sending follow-up tutor question: {}", query);
     let prior_answer = {
@@ -86,7 +88,7 @@ pub async fn send_followup(
 
     let _ = app.emit("tutor:state", "thinking");
 
-    match ai::query_followup_stream(&app, &prior_answer, &query).await {
+    match ai::query_followup_stream(&app, &prior_answer, &query, api_config).await {
         Ok(final_answer) => {
             let mut last = state.last_answer.lock().unwrap();
             *last = final_answer;

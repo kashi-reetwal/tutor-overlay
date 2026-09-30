@@ -19,6 +19,9 @@ import {
   Terminal,
   Activity,
   Zap,
+  CheckCircle2,
+  XCircle,
+  FileCode,
 } from "lucide-react";
 
 type CardState = "idle" | "capturing" | "thinking" | "ready" | "error";
@@ -58,6 +61,80 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
   return {} as T;
 }
 
+// Generate a sample synthetic screen for quick 1-click vision testing
+function generateSampleScreen(): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = 800;
+  canvas.height = 450;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "";
+
+  // Dark IDE theme background
+  ctx.fillStyle = "#0D1117";
+  ctx.fillRect(0, 0, 800, 450);
+
+  // Editor title bar
+  ctx.fillStyle = "#161B22";
+  ctx.fillRect(0, 0, 800, 36);
+
+  // Window dots
+  ctx.fillStyle = "#FF5F56"; ctx.beginPath(); ctx.arc(20, 18, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#FFBD2E"; ctx.beginPath(); ctx.arc(36, 18, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#27C93F"; ctx.beginPath(); ctx.arc(52, 18, 5, 0, Math.PI * 2); ctx.fill();
+
+  // Tab
+  ctx.fillStyle = "#0D1117";
+  ctx.fillRect(70, 6, 140, 30);
+  ctx.fillStyle = "#C9D1D9";
+  ctx.font = "12px monospace";
+  ctx.fillText("algorithm.ts", 85, 24);
+
+  // Code lines
+  ctx.fillStyle = "#8B949E";
+  ctx.fillText("1", 20, 70);
+  ctx.fillText("2", 20, 95);
+  ctx.fillText("3", 20, 120);
+  ctx.fillText("4", 20, 145);
+  ctx.fillText("5", 20, 170);
+  ctx.fillText("6", 20, 195);
+  ctx.fillText("7", 20, 220);
+
+  ctx.fillStyle = "#FF7B72";
+  ctx.fillText("function", 45, 70);
+  ctx.fillStyle = "#D2A8FF";
+  ctx.fillText("binarySearch", 110, 70);
+  ctx.fillStyle = "#C9D1D9";
+  ctx.fillText("(arr: number[], target: number): number {", 205, 70);
+
+  ctx.fillStyle = "#79C0FF";
+  ctx.fillText("  let", 45, 95);
+  ctx.fillStyle = "#C9D1D9";
+  ctx.fillText(" low = 0, high = arr.length - 1;", 75, 95);
+
+  ctx.fillStyle = "#FF7B72";
+  ctx.fillText("  while", 45, 120);
+  ctx.fillStyle = "#C9D1D9";
+  ctx.fillText(" (low <= high) {", 90, 120);
+
+  ctx.fillStyle = "#79C0FF";
+  ctx.fillText("    const", 45, 145);
+  ctx.fillStyle = "#C9D1D9";
+  ctx.fillText(" mid = Math.floor((low + high) / 2);", 95, 145);
+
+  ctx.fillStyle = "#8B949E";
+  ctx.fillText("    // Target match check (O(log n) efficiency)", 45, 170);
+
+  ctx.fillStyle = "#FF7B72";
+  ctx.fillText("    if", 45, 195);
+  ctx.fillStyle = "#C9D1D9";
+  ctx.fillText(" (arr[mid] === target) return mid;", 65, 195);
+
+  ctx.fillStyle = "#C9D1D9";
+  ctx.fillText("  } return -1; }", 45, 220);
+
+  return canvas.toDataURL("image/jpeg", 0.9);
+}
+
 export default function App() {
   const [state, setState] = useState<CardState>("idle");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -70,6 +147,12 @@ export default function App() {
   });
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [testConnectionStatus, setTestConnectionStatus] = useState<{
+    testing: boolean;
+    success?: boolean;
+    message?: string;
+  }>({ testing: false });
+
   const [settings, setSettings] = useState<UserSettings>(() => {
     try {
       const saved = localStorage.getItem("tutor_settings");
@@ -79,13 +162,12 @@ export default function App() {
     }
   });
 
-  // --- FREE DRAGGING SYSTEM (Whole Screen) ---
+  // Free dragging system
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const isDraggingRef = useRef(false);
   const dragStartOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Initialize position to bottom-right or center upon load
   useEffect(() => {
     if (position === null) {
       const initialX = Math.max(20, window.innerWidth - 490);
@@ -95,7 +177,6 @@ export default function App() {
   }, [position]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    // Only drag from header or grip handle
     if ((e.target as HTMLElement).closest("button") || (e.target as HTMLElement).closest("input")) {
       return;
     }
@@ -115,7 +196,6 @@ export default function App() {
     let newX = e.clientX - dragStartOffsetRef.current.x;
     let newY = e.clientY - dragStartOffsetRef.current.y;
 
-    // Clamp within viewport
     newX = Math.max(10, Math.min(window.innerWidth - cardWidth - 10, newX));
     newY = Math.max(10, Math.min(window.innerHeight - cardHeight - 10, newY));
 
@@ -135,7 +215,7 @@ export default function App() {
     };
   }, [handleMouseMove, handleMouseUp]);
 
-  // Browser test mode image upload
+  // Browser test mode image
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const contentEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -150,7 +230,94 @@ export default function App() {
     localStorage.setItem("tutor_settings", JSON.stringify(updated));
   };
 
-  // Set up Tauri event listeners and status check
+  // Test API Key Connection
+  const handleTestConnection = async () => {
+    const cleanApiKey = settings.apiKey.trim().replace(/\s+/g, "").replace(/^['"]|['"]$/g, "");
+    const cleanModel = settings.model.trim().replace(/^['"]|['"]$/g, "") || "gemini-1.5-flash";
+
+    if (cleanApiKey !== settings.apiKey || cleanModel !== settings.model) {
+      updateSettings({ apiKey: cleanApiKey, model: cleanModel });
+    }
+
+    if (!cleanApiKey) {
+      setTestConnectionStatus({
+        testing: false,
+        success: false,
+        message: "Please paste your API key first.",
+      });
+      return;
+    }
+
+    setTestConnectionStatus({ testing: true });
+
+    try {
+      if (settings.provider === "gemini") {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${cleanApiKey}`;
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: "Ping. Reply with: ONLINE" }] }],
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          const rawMsg = errData.error?.message || `HTTP ${res.status}`;
+          let guidance = rawMsg;
+          if (res.status === 400 && rawMsg.includes("API key not valid")) {
+            guidance = "API Key not valid. Get a free key at aistudio.google.com";
+          } else if (res.status === 404) {
+            guidance = `Model '${cleanModel}' not found. Select 'gemini-1.5-flash'.`;
+          } else if (res.status === 429) {
+            guidance = "Rate limit / quota exceeded. Try again in 1 minute.";
+          }
+          throw new Error(guidance);
+        }
+
+        const data = await res.json();
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "ONLINE";
+        setTestConnectionStatus({
+          testing: false,
+          success: true,
+          message: `Uplink verified: ${cleanModel} replied "${reply}"`,
+        });
+      } else {
+        const endpoint = settings.baseUrl || "https://api.openai.com/v1/chat/completions";
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${cleanApiKey}`,
+          },
+          body: JSON.stringify({
+            model: cleanModel,
+            messages: [{ role: "user", content: "Ping" }],
+            max_tokens: 5,
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error?.message || `HTTP ${res.status}`);
+        }
+
+        setTestConnectionStatus({
+          testing: false,
+          success: true,
+          message: `Uplink verified: ${cleanModel} online!`,
+        });
+      }
+    } catch (err: any) {
+      setTestConnectionStatus({
+        testing: false,
+        success: false,
+        message: err.message || "Connection failed",
+      });
+    }
+  };
+
+  // Tauri listeners
   useEffect(() => {
     let unlistenState: (() => void) | undefined;
     let unlistenChunk: (() => void) | undefined;
@@ -231,7 +398,7 @@ export default function App() {
             reader.onload = (event) => {
               const b64 = event.target?.result as string;
               setPreviewImage(b64);
-              handleTrigger("Analyze telemetry and visual context in this captured frame.");
+              handleTrigger("JARVIS, analyze this pasted screenshot and deliver a crisp tutoring breakdown.");
             };
             reader.readAsDataURL(file);
           }
@@ -243,21 +410,25 @@ export default function App() {
     return () => window.removeEventListener("paste", handlePaste);
   }, []);
 
-  // Client-side Vision AI caller for Browser Preview mode
+  // Robust Client-side Vision AI caller for Browser mode
   const runBrowserVisionAI = async (
-    imageBase64: string,
+    rawImage: string | null,
     prompt: string
   ): Promise<void> => {
     setState("thinking");
     setCurrentStreamingText("");
+    setErrorMessage(null);
 
-    if (!settings.apiKey) {
-      // High-tech Jarvis simulation stream
-      const sampleText = `### 🌐 JARVIS // TACTICAL ANALYSIS COMPLETE\n\n**DIAGNOSTIC TELEMETRY:**\n- **Target:** Visual frame analysis lock acquired.\n- **Neural Engine:** Operating in high-speed tutoring mode.\n- **Core Assessment:** The active viewport exhibits structured logic modules and UI parameters requiring optimization.\n\n\`\`\`rust\n// JARVIS telemetry: Win32 active window pipeline is active\npub fn execute_protocol() -> Status {\n    Status::Online\n}\n\`\`\`\n\n> 💡 **Protocol Note:** For live cloud analysis with your personal screen, configure your free **Gemini API key** in Settings ⚙️ (top right), or press \`Alt+T\` in desktop mode.`;
+    const cleanApiKey = settings.apiKey.trim().replace(/\s+/g, "").replace(/^['"]|['"]$/g, "");
+    const cleanModel = settings.model.trim().replace(/^['"]|['"]$/g, "") || (settings.provider === "gemini" ? "gemini-1.5-flash" : "gpt-4o-mini");
+
+    // 1. If NO API key is supplied, run simulated high-fidelity response immediately!
+    if (!cleanApiKey) {
+      const sampleText = `### 🌐 JARVIS // TACTICAL ANALYSIS COMPLETE\n\n**DIAGNOSTIC TELEMETRY:**\n- **Algorithm In Focus:** Binary Search algorithm implementation.\n- **Time Complexity:** \`O(log n)\` — halves search space each iteration.\n- **Space Complexity:** \`O(1)\` auxiliary space.\n\n\`\`\`typescript\n// Binary search pointer logic check:\nconst mid = Math.floor((low + high) / 2);\nif (arr[mid] === target) return mid;\nelse if (arr[mid] < target) low = mid + 1;\nelse high = mid - 1;\n\`\`\`\n\n> 💡 **Live AI Note:** To stream real-time Gemini vision answers on your own screen, click **Settings ⚙️** (top right) and paste your free **Gemini API Key**.`;
 
       let index = 0;
       const interval = setInterval(() => {
-        index += 28;
+        index += 24;
         if (index <= sampleText.length) {
           setCurrentStreamingText(sampleText.slice(0, index));
         } else {
@@ -266,126 +437,128 @@ export default function App() {
           setCurrentStreamingText("");
           setState("ready");
         }
-      }, 35);
+      }, 25);
       return;
     }
 
+    // 2. Real API call with user's key
     try {
-      const cleanB64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
+      // Auto-fallback: if user hasn't uploaded/pasted an image, provide the sample IDE frame so Vision AI has context
+      let effectiveImage = rawImage;
+      if (!effectiveImage || !effectiveImage.startsWith("data:image/")) {
+        effectiveImage = generateSampleScreen();
+        setPreviewImage(effectiveImage);
+      }
+
+      const cleanB64 = effectiveImage.replace(/^data:image\/[a-z]+;base64,/, "");
 
       if (settings.provider === "gemini") {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:streamGenerateContent?alt=sse&key=${settings.apiKey}`;
-        const res = await fetch(endpoint, {
+        const parts: any[] = [
+          {
+            text: `You are JARVIS, an ultra-intelligent, sharp, and encouraging AI tutor.
+Analyze this code/screen viewport and deliver a clear, tactical tutoring explanation with bullet points and code highlights.
+User Query: ${prompt}`,
+          },
+        ];
+
+        if (cleanB64 && cleanB64.length > 50) {
+          parts.push({
+            inlineData: {
+              mimeType: "image/jpeg",
+              data: cleanB64,
+            },
+          });
+        }
+
+        const directEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${cleanApiKey}`;
+        const res = await fetch(directEndpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: `System: You are JARVIS, an ultra-intelligent, sharp, and encouraging AI tutor. Analyze this screenshot and deliver a crisp, tactical tutoring breakdown.\n\nUser Question: ${prompt}` },
-                  { inlineData: { mimeType: "image/jpeg", data: cleanB64 } },
-                ],
-              },
-            ],
+            contents: [{ role: "user", parts }],
           }),
         });
 
         if (!res.ok) {
-          throw new Error(`Gemini Protocol Rejected (${res.status}): ${await res.text()}`);
-        }
-
-        const reader = res.body?.getReader();
-        const decoder = new TextDecoder();
-        let accumulated = "";
-
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const text = decoder.decode(value);
-            for (const line of text.split("\n")) {
-              if (line.startsWith("data: ")) {
-                try {
-                  const json = JSON.parse(line.slice(6));
-                  const chunk =
-                    json.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                  accumulated += chunk;
-                  setCurrentStreamingText(accumulated);
-                } catch {
-                  // partial JSON
-                }
-              }
-            }
+          const errJson = await res.json().catch(() => ({}));
+          const errMsg = errJson.error?.message || `HTTP ${res.status}`;
+          let friendly = errMsg;
+          if (res.status === 400 && errMsg.includes("API key not valid")) {
+            friendly = "Invalid Gemini API Key. Click Settings (⚙️) to update your key from Google AI Studio.";
+          } else if (res.status === 404) {
+            friendly = `Model '${cleanModel}' not found. Click Settings (⚙️) and select 'gemini-1.5-flash'.`;
+          } else if (res.status === 429) {
+            friendly = "Gemini API Quota exceeded. Please wait a moment before trying again.";
           }
+          throw new Error(friendly);
         }
-        setMessages((prev) => [...prev, { role: "jarvis", content: accumulated }]);
-        setCurrentStreamingText("");
-        setState("ready");
+
+        const data = await res.json();
+        const candidate = data.candidates?.[0];
+        const ansText = candidate?.content?.parts?.[0]?.text;
+
+        if (!ansText) {
+          const reason = candidate?.finishReason || "No content generated";
+          throw new Error(`Gemini completed with reason: ${reason}`);
+        }
+
+        // Animate text stream into UI for smooth JARVIS delivery
+        let index = 0;
+        const chunkSize = Math.max(8, Math.floor(ansText.length / 35));
+        const streamInterval = setInterval(() => {
+          index += chunkSize;
+          if (index < ansText.length) {
+            setCurrentStreamingText(ansText.slice(0, index));
+          } else {
+            clearInterval(streamInterval);
+            setCurrentStreamingText("");
+            setMessages((prev) => [...prev, { role: "jarvis", content: ansText }]);
+            setState("ready");
+          }
+        }, 20);
       } else {
-        // OpenAI-compatible
-        const endpoint =
-          settings.baseUrl || "https://api.openai.com/v1/chat/completions";
+        // OpenAI / compatible
+        const endpoint = settings.baseUrl || "https://api.openai.com/v1/chat/completions";
+        const userContent: any[] = [{ type: "text", text: prompt }];
+
+        if (cleanB64 && cleanB64.length > 50) {
+          userContent.push({
+            type: "image_url",
+            image_url: { url: `data:image/jpeg;base64,${cleanB64}` },
+          });
+        }
+
         const res = await fetch(endpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${settings.apiKey}`,
+            Authorization: `Bearer ${cleanApiKey}`,
           },
           body: JSON.stringify({
-            model: settings.model,
-            stream: true,
+            model: cleanModel,
             messages: [
               {
                 role: "system",
                 content: "You are JARVIS, an ultra-intelligent AI tutor. Break down the user's screen clearly with tactical highlights.",
               },
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: prompt },
-                  {
-                    type: "image_url",
-                    image_url: { url: `data:image/jpeg;base64,${cleanB64}` },
-                  },
-                ],
-              },
+              { role: "user", content: userContent },
             ],
           }),
         });
 
         if (!res.ok) {
-          throw new Error(`AI Provider Failure: ${await res.text()}`);
+          const errJson = await res.json().catch(() => ({}));
+          throw new Error(errJson.error?.message || `AI Provider HTTP ${res.status}`);
         }
 
-        const reader = res.body?.getReader();
-        const decoder = new TextDecoder();
-        let accumulated = "";
-
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const text = decoder.decode(value);
-            for (const line of text.split("\n")) {
-              if (line.startsWith("data: ") && line !== "data: [DONE]") {
-                try {
-                  const json = JSON.parse(line.slice(6));
-                  const chunk = json.choices?.[0]?.delta?.content || "";
-                  accumulated += chunk;
-                  setCurrentStreamingText(accumulated);
-                } catch {
-                  // partial line
-                }
-              }
-            }
-          }
-        }
-        setMessages((prev) => [...prev, { role: "jarvis", content: accumulated }]);
-        setCurrentStreamingText("");
+        const data = await res.json();
+        const ansText = data.choices?.[0]?.message?.content || "Answer generated.";
+        setMessages((prev) => [...prev, { role: "jarvis", content: ansText }]);
         setState("ready");
       }
     } catch (err: any) {
-      setErrorMessage(err.message || "JARVIS Uplink Error");
+      console.error("AI Error:", err);
+      setErrorMessage(err.message || "Failed to query AI provider");
       setState("error");
     }
   };
@@ -394,23 +567,31 @@ export default function App() {
     setState("capturing");
     setErrorMessage(null);
     setCurrentStreamingText("");
-    setMessages([]);
 
     const prompt =
       customPrompt || "JARVIS, analyze the visible context on screen and deliver an executive tutoring brief.";
 
+    setMessages([{ role: "user", content: prompt }]);
+
     if (isTauri) {
       try {
-        await tauriInvoke("trigger_tutor", { userQuery: prompt });
+        await tauriInvoke("trigger_tutor", {
+          userQuery: prompt,
+          apiConfig: {
+            provider: settings.provider,
+            model: settings.model,
+            apiKey: settings.apiKey,
+            baseUrl: settings.baseUrl,
+          },
+        });
       } catch (err: any) {
         setErrorMessage(err?.toString() || "Tactical capture failed");
         setState("error");
       }
     } else {
       setTimeout(() => {
-        const dummyImg = previewImage || "placeholder";
-        runBrowserVisionAI(dummyImg, prompt);
-      }, 500);
+        runBrowserVisionAI(previewImage, prompt);
+      }, 400);
     }
   };
 
@@ -425,17 +606,102 @@ export default function App() {
 
     if (isTauri) {
       try {
-        await tauriInvoke("send_followup", { query });
+        await tauriInvoke("send_followup", {
+          query,
+          apiConfig: {
+            provider: settings.provider,
+            model: settings.model,
+            apiKey: settings.apiKey,
+            baseUrl: settings.baseUrl,
+          },
+        });
       } catch (err: any) {
         setErrorMessage(err?.toString() || "Command link failed");
         setState("ready");
       }
     } else {
-      setTimeout(() => {
-        const followUpAnswer = `**JARVIS Response // Telemetry Lock:**\n\nAddressing query: *"${query}"*\n\n- Analyzing referenced variables in the prior frame.\n- Solution parameters confirmed. No structural anomalies detected.`;
-        setMessages((prev) => [...prev, { role: "jarvis", content: followUpAnswer }]);
-        setState("ready");
-      }, 700);
+      const cleanApiKey = settings.apiKey.trim().replace(/\s+/g, "").replace(/^['"]|['"]$/g, "");
+      const cleanModel = settings.model.trim().replace(/^['"]|['"]$/g, "") || (settings.provider === "gemini" ? "gemini-1.5-flash" : "gpt-4o-mini");
+
+      if (!cleanApiKey) {
+        setTimeout(() => {
+          const followUpAnswer = `**JARVIS Response // Telemetry Lock:**\n\nAddressing query: *"${query}"*\n\n- Analyzing referenced variables in the prior frame.\n- Solution parameters confirmed. Enter your **Gemini Key** in Settings ⚙️ to run multi-turn live AI reasoning.`;
+          setMessages((prev) => [...prev, { role: "jarvis", content: followUpAnswer }]);
+          setState("ready");
+        }, 600);
+      } else {
+        try {
+          if (settings.provider === "gemini") {
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${cleanApiKey}`;
+            
+            // Build conversation history ensuring it starts with user role and alternates
+            const contents: any[] = [];
+            for (const m of messages) {
+              contents.push({
+                role: m.role === "user" ? "user" : "model",
+                parts: [{ text: m.content }],
+              });
+            }
+
+            if (contents.length === 0 || contents[0].role !== "user") {
+              contents.unshift({
+                role: "user",
+                parts: [{ text: "Context visual analysis and tutoring session." }],
+              });
+            }
+
+            contents.push({ role: "user", parts: [{ text: query }] });
+
+            const res = await fetch(endpoint, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ contents }),
+            });
+
+            if (!res.ok) {
+              const errJson = await res.json().catch(() => ({}));
+              throw new Error(errJson.error?.message || `HTTP ${res.status}`);
+            }
+
+            const data = await res.json();
+            const ansText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Answer generated.";
+            setMessages((prev) => [...prev, { role: "jarvis", content: ansText }]);
+            setState("ready");
+          } else {
+            const endpoint = settings.baseUrl || "https://api.openai.com/v1/chat/completions";
+            const msgs = messages.map((m) => ({
+              role: m.role === "user" ? "user" : "assistant",
+              content: m.content,
+            }));
+            msgs.push({ role: "user", content: query });
+
+            const res = await fetch(endpoint, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${cleanApiKey}`,
+              },
+              body: JSON.stringify({
+                model: cleanModel,
+                messages: msgs,
+              }),
+            });
+
+            if (!res.ok) {
+              const errJson = await res.json().catch(() => ({}));
+              throw new Error(errJson.error?.message || `HTTP ${res.status}`);
+            }
+
+            const data = await res.json();
+            const ansText = data.choices?.[0]?.message?.content || "Answer generated.";
+            setMessages((prev) => [...prev, { role: "jarvis", content: ansText }]);
+            setState("ready");
+          }
+        } catch (err: any) {
+          setErrorMessage(err.message || "Follow-up failed");
+          setState("ready");
+        }
+      }
     }
   };
 
@@ -464,6 +730,12 @@ export default function App() {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const loadSampleAndTrigger = () => {
+    const sampleB64 = generateSampleScreen();
+    setPreviewImage(sampleB64);
+    handleTrigger("JARVIS, tutor me on this algorithm code snippet: explain logic, edge cases, and complexity.");
   };
 
   return (
@@ -635,7 +907,7 @@ export default function App() {
                   }}
                   className="w-full bg-[#030914] border border-cyan-500/40 rounded px-2 py-1 text-xs text-cyan-200 outline-none focus:border-cyan-400"
                 >
-                  <option value="gemini">Google Gemini (Recommended)</option>
+                  <option value="gemini">Google Gemini (Free API)</option>
                   <option value="openai">OpenAI / Compatible</option>
                 </select>
               </div>
@@ -647,7 +919,7 @@ export default function App() {
                 <input
                   type="text"
                   value={settings.model}
-                  onChange={(e) => updateSettings({ model: e.target.value })}
+                  onChange={(e) => updateSettings({ model: e.target.value.trim() })}
                   placeholder={
                     settings.provider === "gemini"
                       ? "gemini-1.5-flash"
@@ -655,13 +927,33 @@ export default function App() {
                   }
                   className="w-full bg-[#030914] border border-cyan-500/40 rounded px-2 py-1 text-xs text-cyan-200 outline-none focus:border-cyan-400"
                 />
+                {settings.provider === "gemini" && (
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <span className="text-[8px] text-cyan-500/80">PRESETS:</span>
+                    {["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => updateSettings({ model: m })}
+                        className={`text-[8px] px-1.5 py-0.5 rounded border transition-colors ${
+                          settings.model === m
+                            ? "border-cyan-400 bg-cyan-900/60 text-cyan-200"
+                            : "border-cyan-500/30 bg-[#020712] hover:border-cyan-400/50 text-cyan-400"
+                        }`}
+                      >
+                        {m.replace("gemini-", "")}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[9px] text-cyan-400/80 block">
-                  API KEY {settings.provider === "gemini" && "(Google AI Studio)"}
+                <label className="text-[9px] text-cyan-400/80 flex items-center gap-1">
+                  <Key className="w-2.5 h-2.5 text-cyan-400" />
+                  <span>API KEY {settings.provider === "gemini" && "(Google AI Studio)"}</span>
                 </label>
                 {settings.provider === "gemini" && (
                   <a
@@ -678,13 +970,47 @@ export default function App() {
               <input
                 type="password"
                 value={settings.apiKey}
-                onChange={(e) => updateSettings({ apiKey: e.target.value })}
-                placeholder="Paste key (AIza... or sk-...) or leave blank to test simulated stream"
+                onChange={(e) => updateSettings({ apiKey: e.target.value.trim().replace(/^['"]|['"]$/g, "") })}
+                placeholder="Paste key (AIza... or sk-...) or leave empty for simulation"
                 className="w-full bg-[#030914] border border-cyan-500/40 rounded px-2 py-1 text-xs text-cyan-200 outline-none focus:border-cyan-400"
               />
-              <p className="text-[9px] text-cyan-600 mt-1">
-                Leave blank to test full simulated Jarvis responses without any key.
-              </p>
+            </div>
+
+            {/* Test Connection Button & Result */}
+            <div className="pt-1 flex items-center justify-between gap-2">
+              <button
+                onClick={handleTestConnection}
+                disabled={testConnectionStatus.testing || !settings.apiKey.trim()}
+                className="shrink-0 px-2.5 py-1 rounded border border-cyan-500/50 bg-cyan-950/60 hover:bg-cyan-900/60 text-cyan-300 text-[10px] flex items-center gap-1.5 transition-all disabled:opacity-40"
+              >
+                {testConnectionStatus.testing ? (
+                  <>
+                    <div className="w-2.5 h-2.5 border border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                    <span>TESTING UPLINK...</span>
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-2.5 h-2.5 text-cyan-400" />
+                    <span>TEST API KEY</span>
+                  </>
+                )}
+              </button>
+
+              {testConnectionStatus.message && (
+                <span
+                  className={`text-[10px] flex items-center gap-1 truncate max-w-[260px] ${
+                    testConnectionStatus.success ? "text-emerald-400" : "text-rose-400"
+                  }`}
+                  title={testConnectionStatus.message}
+                >
+                  {testConnectionStatus.success ? (
+                    <CheckCircle2 className="w-3 h-3 shrink-0" />
+                  ) : (
+                    <XCircle className="w-3 h-3 shrink-0" />
+                  )}
+                  <span className="truncate">{testConnectionStatus.message}</span>
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -730,11 +1056,8 @@ export default function App() {
             <div className="py-6 flex flex-col items-center justify-center text-center space-y-4">
               {/* Rotating Arc Reactor Graphic */}
               <div className="relative flex items-center justify-center w-24 h-24 my-1">
-                {/* Outer dashed ring */}
                 <div className="absolute inset-0 rounded-full border-2 border-cyan-400/40 border-dashed animate-spin-slow" />
-                {/* Middle reverse ring */}
                 <div className="absolute inset-2 rounded-full border border-cyan-300/30 border-t-transparent animate-spin-reverse" />
-                {/* Inner glowing core */}
                 <div className="w-12 h-12 rounded-full bg-cyan-400/10 border border-cyan-300 flex items-center justify-center shadow-[0_0_20px_#00F0FF] animate-pulse-core">
                   <Cpu className="w-6 h-6 text-cyan-300" />
                 </div>
@@ -745,11 +1068,11 @@ export default function App() {
                   JARVIS TACTICAL TUTOR READY
                 </p>
                 <p className="text-[11px] text-cyan-500/90 mt-1 max-w-[280px]">
-                  Press <kbd className="px-1.5 py-0.5 rounded bg-cyan-950 border border-cyan-500 font-mono text-[10px] text-cyan-300">Alt + T</kbd> to analyze active window
+                  Click below to scan, or drag any sample code image to test
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
                 <button
                   onClick={() => handleTrigger()}
                   className="px-3.5 py-1.5 rounded border border-cyan-400 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 font-bold text-xs shadow-[0_0_15px_rgba(0,240,255,0.3)] transition-all flex items-center gap-1.5"
@@ -760,6 +1083,15 @@ export default function App() {
 
                 {!isTauri && (
                   <>
+                    <button
+                      onClick={loadSampleAndTrigger}
+                      className="px-3 py-1.5 rounded border border-indigo-500/40 bg-indigo-950/50 hover:bg-indigo-900/60 text-indigo-300 text-xs flex items-center gap-1.5 transition-all shadow-[0_0_10px_rgba(99,102,241,0.2)]"
+                      title="Load sample code screenshot to test Vision AI recognition"
+                    >
+                      <FileCode className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>SAMPLE CODE</span>
+                    </button>
+
                     <input
                       type="file"
                       ref={fileInputRef}
@@ -773,7 +1105,7 @@ export default function App() {
                       title="Load test screenshot or press Ctrl+V"
                     >
                       <Upload className="w-3 h-3" />
-                      <span>UPLOAD FRAME</span>
+                      <span>UPLOAD</span>
                     </button>
                   </>
                 )}

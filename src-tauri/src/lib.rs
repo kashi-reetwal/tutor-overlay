@@ -29,7 +29,7 @@ pub fn run() {
                         let app_clone = app.clone();
                         tauri::async_runtime::spawn(async move {
                             let state = app_clone.state::<AppState>();
-                            let _ = commands::trigger_tutor(app_clone.clone(), state, None).await;
+                            let _ = commands::trigger_tutor(app_clone.clone(), state, None, None).await;
                         });
                     }
                 })
